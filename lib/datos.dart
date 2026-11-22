@@ -92,6 +92,9 @@ String _dia(DateTime d) =>
 
 final entradas = ValueNotifier<List<Entrada>>([]);
 
+/// Nombre de un ThemeMode: system, light o dark. Se guarda junto a las entradas.
+final modoTema = ValueNotifier<String>('system');
+
 File archivoDatos = File('${Platform.environment['APPDATA']}\\Agenda\\entradas.json');
 
 Future<void> cargar() async {
@@ -99,6 +102,7 @@ Future<void> cargar() async {
   try {
     final j = jsonDecode(await archivoDatos.readAsString()) as Map<String, dynamic>;
     entradas.value = [for (final e in j['entradas'] as List) Entrada.fromJson(e)];
+    modoTema.value = j['tema'] ?? 'system';
   } catch (e) {
     // Archivo roto: apartarlo para no pisarlo al guardar.
     final roto = '${archivoDatos.path}.roto-${DateTime.now().millisecondsSinceEpoch}';
@@ -112,9 +116,16 @@ Future<void> guardar() async {
   final tmp = File('${archivoDatos.path}.tmp');
   await tmp.writeAsString(const JsonEncoder.withIndent(' ').convert({
     'version': 1,
+    'tema': modoTema.value,
     'entradas': entradas.value,
   }), flush: true);
   await tmp.rename(archivoDatos.path); // escribir aparte y renombrar: un corte no deja el archivo a medias
+}
+
+/// Después de modificar una entrada en el lugar: avisa a la pantalla y guarda.
+Future<void> cambiar() async {
+  entradas.value = [...entradas.value];
+  await guardar();
 }
 
 Future<void> agregar(Entrada e) async {

@@ -119,7 +119,8 @@ Entrada interpretar(String frase, DateTime ahora, {Tipo? tipo}) {
                       ? Tipo.nota
                       : Tipo.tarea;
 
-  if (fecha == null && (tipo == Tipo.evento || (tipo == Tipo.tarea && hora != null))) fecha = hoy;
+  // Lo repetido arranca hoy si no se dijo otra cosa.
+  if (fecha == null && (tipo == Tipo.evento || (tipo == Tipo.tarea && (hora != null || rep != null)))) fecha = hoy;
   if (tipo == Tipo.cumple) rep = const Repeticion('anio');
   final f = fecha;
   if (edad != null && f != null && f.year == 0) {
@@ -140,15 +141,24 @@ List<String> describir(Entrada e, DateTime ahora) {
     if (e.importante) 'importante',
     if (f != null && e.tipo == Tipo.cumple) '${f.day}/${f.month}',
     if (f != null && e.tipo == Tipo.cumple && f.year != 0) 'cumple ${_proximo(f, ahora).year - f.year}',
-    if (f != null && e.tipo != Tipo.cumple) '${_abrev[f.weekday - 1]} ${f.day}/${f.month}${f.year != ahora.year ? '/${f.year}' : ''}',
+    if (f != null && e.tipo != Tipo.cumple) fechaCorta(f, ahora),
     if (e.hora != null) e.hora!,
-    if (r != null && e.tipo != Tipo.cumple)
-      r.dias.isNotEmpty
-          ? 'todos los ${[for (final d in r.dias) _abrev[d - 1]].join(', ')}'
-          : r.cada > 1
-              ? 'cada ${r.cada} ${const {'dia': 'días', 'semana': 'semanas', 'mes': 'meses', 'anio': 'años'}[r.unidad]}'
-              : const {'dia': 'todos los días', 'semana': 'todas las semanas', 'mes': 'todos los meses', 'anio': 'todos los años'}[r.unidad]!,
+    if (r != null && e.tipo != Tipo.cumple) textoRepeticion(r),
   ];
+}
+
+String fechaCorta(DateTime f, DateTime ahora) => '${_abrev[f.weekday - 1]} ${f.day}/${f.month}${f.year != ahora.year ? '/${f.year}' : ''}';
+
+String textoRepeticion(Repeticion r) => r.dias.isNotEmpty
+    ? 'todos los ${[for (final d in r.dias) _abrev[d - 1]].join(', ')}'
+    : r.cada > 1
+        ? 'cada ${r.cada} ${const {'dia': 'días', 'semana': 'semanas', 'mes': 'meses', 'anio': 'años'}[r.unidad]}'
+        : const {'dia': 'todos los días', 'semana': 'todas las semanas', 'mes': 'todos los meses', 'anio': 'todos los años'}[r.unidad]!;
+
+/// Texto para mostrar en un día; los cumpleaños con año suman la edad.
+String titulo(Entrada e, DateTime d) {
+  final f = e.fecha;
+  return e.tipo == Tipo.cumple && f != null && f.year != 0 ? '${e.texto} (${d.year - f.year})' : e.texto;
 }
 
 DateTime _proximo(DateTime f, DateTime ahora) {

@@ -1,5 +1,4 @@
-// Prueba de Windows: bandeja, arranque con Windows, notificación programada
-// con botones y atajo global. Se reemplaza por la app real cuando todo funcione.
+// Arranque de la app: bandeja, atajo global, notificaciones y ventana principal.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,12 +10,11 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
 
-import 'captura.dart';
+import 'pantalla.dart';
 import 'datos.dart';
 
 final notis = FlutterLocalNotificationsPlugin();
 final registro = ValueNotifier<List<String>>([]);
-final captura = FocusNode();
 late final tray.TrayIcon iconoBandeja; // referencia global para que no se libere
 late final Window ventana;
 
@@ -48,11 +46,7 @@ Future<void> main(List<String> args) async {
   tzdata.initializeTimeZones();
   await notis.initialize(
     settings: const InitializationSettings(
-      windows: WindowsInitializationSettings(
-        appName: 'Agenda',
-        appUserModelId: 'com.agenda.agenda',
-        guid: '8c9a5077-333c-466b-8443-ef71354cf30a',
-      ),
+      windows: WindowsInitializationSettings(appName: 'Agenda', appUserModelId: 'com.agenda.agenda', guid: '8c9a5077-333c-466b-8443-ef71354cf30a'),
     ),
     onDidReceiveNotificationResponse: (r) => log('Notificación: ${r.actionId?.isNotEmpty == true ? r.actionId : 'clic en el cuerpo'}'),
   );
@@ -90,7 +84,6 @@ Future<void> main(List<String> args) async {
   }
 }
 
-
 void _bandeja() {
   iconoBandeja = tray.TrayIcon.create()!;
   iconoBandeja.icon = tray.ImageAsset.fromAsset('assets/tray.ico');
@@ -122,11 +115,13 @@ void _bandeja() {
 }
 
 const _detalles = NotificationDetails(
-  windows: WindowsNotificationDetails(actions: [
-    WindowsAction(content: 'Hecha', arguments: 'hecha'),
-    WindowsAction(content: 'Posponer 10 min', arguments: 'posponer-10'),
-    WindowsAction(content: 'Posponer 1 h', arguments: 'posponer-60'),
-  ]),
+  windows: WindowsNotificationDetails(
+    actions: [
+      WindowsAction(content: 'Hecha', arguments: 'hecha'),
+      WindowsAction(content: 'Posponer 10 min', arguments: 'posponer-10'),
+      WindowsAction(content: 'Posponer 1 h', arguments: 'posponer-60'),
+    ],
+  ),
 );
 
 Future<void> notificarAhora() async {
@@ -156,95 +151,100 @@ Future<void> programar() async {
 
 // Arranque con Windows: entrada en HKCU\...\Run, sin dependencias extra.
 const _run = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
-Future<bool> arranqueActivo() async =>
-    (await Process.run('reg', ['query', _run, '/v', 'Agenda'])).exitCode == 0;
+Future<bool> arranqueActivo() async => (await Process.run('reg', ['query', _run, '/v', 'Agenda'])).exitCode == 0;
 Future<void> cambiarArranque(bool activar) async {
-  final r = await Process.run('reg', activar
-      ? ['add', _run, '/v', 'Agenda', '/t', 'REG_SZ', '/d', '"${Platform.resolvedExecutable}" --minimized', '/f']
-      : ['delete', _run, '/v', 'Agenda', '/f']);
+  final r = await Process.run(
+    'reg',
+    activar
+        ? ['add', _run, '/v', 'Agenda', '/t', 'REG_SZ', '/d', '"${Platform.resolvedExecutable}" --minimized', '/f']
+        : ['delete', _run, '/v', 'Agenda', '/f'],
+  );
   log(r.exitCode == 0 ? 'Arranque con Windows: ${activar ? 'activado' : 'desactivado'}' : 'Error: ${r.stderr}');
 }
 
-class App extends StatefulWidget {
+class App extends StatelessWidget {
   const App({super.key});
   @override
-  State<App> createState() => _AppState();
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: modoTema,
+    builder: (_, modo, _) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: tema(Brightness.light),
+      darkTheme: tema(Brightness.dark),
+      themeMode: ThemeMode.values.asNameMap()[modo] ?? ThemeMode.system,
+      home: const Pantalla(ajustes: Ajustes()),
+    ),
+  );
 }
 
-class _AppState extends State<App> {
+/// Ajustes: por ahora el arranque con Windows y las pruebas de notificación.
+class Ajustes extends StatefulWidget {
+  const Ajustes({super.key});
+  @override
+  State<Ajustes> createState() => _AjustesState();
+}
+
+class _AjustesState extends State<Ajustes> {
   bool arranque = false;
-  final _texto = TextEditingController();
-  Tipo? _forzado;
 
   @override
   void initState() {
     super.initState();
-    arranqueActivo().then((v) => setState(() => arranque = v));
+    arranqueActivo().then((v) {
+      if (mounted) setState(() => arranque = v);
+    });
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          appBar: AppBar(title: const Text('Agenda — prueba de Windows')),
-          body: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              TextField(
-                focusNode: captura,
-                decoration: const InputDecoration(hintText: 'Escribí algo y Enter: "dentista el martes 18:30"'),
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (t) async {
-                  if (t.trim().isEmpty) return;
-                  await agregar(interpretar(t, DateTime.now(), tipo: _forzado));
-                  _texto.clear();
-                  setState(() => _forzado = null);
-                  captura.requestFocus(); // Enter quita el foco; dejarlo para seguir escribiendo
-                },
-                controller: _texto,
-              ),
-              if (_texto.text.trim().isNotEmpty)
-                Builder(builder: (_) {
-                  final e = interpretar(_texto.text, DateTime.now(), tipo: _forzado);
-                  return Wrap(spacing: 6, runSpacing: 6, children: [
-                    for (final t in Tipo.values)
-                      ChoiceChip(label: Text(nombreTipo[t]!), selected: e.tipo == t, onSelected: (_) => setState(() => _forzado = t)),
-                    for (final s in describir(e, DateTime.now())) Chip(label: Text(s)),
-                  ]);
-                }),
-              SizedBox(
-                height: 200,
-                child: ValueListenableBuilder(
-                  valueListenable: entradas,
-                  builder: (_, l, _) => ListView(children: [
-                    for (final e in l.reversed.where((e) => !e.borrado)) ListTile(dense: true, title: Text(e.texto), subtitle: Text(describir(e, DateTime.now()).join(' · ')), trailing: Text(nombreTipo[e.tipo]!)),
-                  ]),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                title: const Text('Arrancar con Windows (minimizada)'),
-                value: arranque,
-                onChanged: (v) async {
-                  await cambiarArranque(v);
-                  final real = await arranqueActivo();
-                  setState(() => arranque = real);
-                },
-              ),
-              Wrap(spacing: 8, children: [
-                FilledButton(onPressed: notificarAhora, child: const Text('Notificación ahora')),
-                FilledButton(onPressed: programar, child: const Text('Notificación en 10 s')),
-              ]),
-              const SizedBox(height: 16),
-              const Text('Registro:'),
-              Expanded(
-                child: ValueListenableBuilder(
-                  valueListenable: registro,
-                  builder: (_, l, _) => ListView(children: [for (final s in l) Text(s)]),
-                ),
-              ),
-            ]),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text('Ajustes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 20),
+      ListTile(
+        title: const Text('Apariencia'),
+        trailing: ValueListenableBuilder(
+          valueListenable: modoTema,
+          builder: (_, modo, _) => SegmentedButton<String>(
+            showSelectedIcon: false,
+            style: SegmentedButton.styleFrom(visualDensity: VisualDensity.compact),
+            segments: const [
+              ButtonSegment(value: 'system', label: Text('Sistema'), icon: Icon(Icons.brightness_auto_outlined, size: 16)),
+              ButtonSegment(value: 'light', label: Text('Claro'), icon: Icon(Icons.light_mode_outlined, size: 16)),
+              ButtonSegment(value: 'dark', label: Text('Oscuro'), icon: Icon(Icons.dark_mode_outlined, size: 16)),
+            ],
+            selected: {modo},
+            onSelectionChanged: (s) {
+              modoTema.value = s.first;
+              guardar();
+            },
           ),
         ),
-      );
+      ),
+      SwitchListTile(
+        title: const Text('Arrancar con Windows (minimizada)'),
+        value: arranque,
+        onChanged: (v) async {
+          await cambiarArranque(v);
+          final real = await arranqueActivo();
+          setState(() => arranque = real);
+        },
+      ),
+      Wrap(
+        spacing: 8,
+        children: [
+          FilledButton(onPressed: notificarAhora, child: const Text('Notificación ahora')),
+          FilledButton(onPressed: programar, child: const Text('Notificación en 10 s')),
+        ],
+      ),
+      const SizedBox(height: 16),
+      const Text('Registro:'),
+      Expanded(
+        child: ValueListenableBuilder(
+          valueListenable: registro,
+          builder: (_, l, _) => ListView(children: [for (final s in l) Text(s)]),
+        ),
+      ),
+    ],
+  );
 }

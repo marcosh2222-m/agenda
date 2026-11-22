@@ -20,13 +20,16 @@ void main() {
         alarmas: [480, 840],
       ),
     ];
+    modoTema.value = 'dark';
     await guardar();
     await guardar(); // segunda vez: el rename tiene que pisar el archivo
     final antes = [for (final e in entradas.value) e.toJson()];
 
     entradas.value = [];
+    modoTema.value = 'system';
     await cargar();
     expect([for (final e in entradas.value) e.toJson()], antes);
+    expect(modoTema.value, 'dark');
     expect(entradas.value[1].fecha, DateTime(2026, 11, 21));
 
     await archivoDatos.writeAsString('{roto');
