@@ -1,91 +1,14 @@
 // Pantalla principal de PC (ver docs/boceto-pc.html).
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'calendario.dart';
 import 'captura.dart';
 import 'datos.dart';
+import 'dia.dart';
+import 'estilo.dart';
 
 final captura = FocusNode();
-
-class Paleta {
-  final Color bg, line, text, muted, panel, hover, accent, dia;
-  const Paleta(this.bg, this.line, this.text, this.muted, this.panel, this.hover, this.accent, this.dia);
-  // Un solo fondo; panel tiñe apenas la captura, dia es el beige de los 7 días. muted pasa 4.5:1 sobre bg y sobre dia.
-  static const claro = Paleta(
-    Color(0xFFFAF7F2),
-    Color(0xFFECE6DC),
-    Color(0xFF2F2A23),
-    Color(0xFF6A6156),
-    Color(0xFFF2EDE4),
-    Color(0xFFF4EFE7),
-    Color(0xFFB0643A),
-    Color(0xFFEEE6D8),
-  );
-  static const oscuro = Paleta(
-    Color(0xFF1B1916),
-    Color(0xFF2E2A25),
-    Color(0xFFECE5D8),
-    Color(0xFFA39889),
-    Color(0xFF24211D),
-    Color(0xFF262320),
-    Color(0xFFE09668),
-    Color(0xFF292520),
-  );
-  static Paleta of(BuildContext c) => Theme.of(c).brightness == Brightness.dark ? oscuro : claro;
-}
-
-const colorTipo = {Tipo.tarea: Color(0xFF5B8FD6), Tipo.evento: Color(0xFF4F9E63), Tipo.cumple: Color(0xFF8E6FD1), Tipo.nota: Color(0xFFE08A3C)};
-const colorCat = {
-  Categoria.evento: Color(0xFF4F9E63),
-  Categoria.cumple: Color(0xFF8E6FD1),
-  Categoria.imp: Color(0xFFD9564C),
-  Categoria.tarea: Color(0xFF5B8FD6),
-};
-const _vencida = Color(0xFF9A6E4C);
-const _meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const _dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-const _tabular = [FontFeature.tabularFigures()];
-
-ThemeData tema(Brightness b) {
-  final p = b == Brightness.dark ? Paleta.oscuro : Paleta.claro;
-  final base = ThemeData(
-    brightness: b,
-    fontFamily: 'Segoe UI',
-    colorScheme: ColorScheme.fromSeed(seedColor: p.accent, brightness: b, primary: p.accent),
-  );
-  return base.copyWith(
-    scaffoldBackgroundColor: p.bg,
-    hoverColor: p.hover,
-    splashFactory: NoSplash.splashFactory,
-    textTheme: base.textTheme.apply(bodyColor: p.text, displayColor: p.text),
-    textSelectionTheme: TextSelectionThemeData(cursorColor: p.accent, selectionColor: p.accent.withValues(alpha: .25)),
-    scrollbarTheme: ScrollbarThemeData(thickness: const WidgetStatePropertyAll(4), thumbColor: WidgetStatePropertyAll(p.line)),
-    checkboxTheme: CheckboxThemeData(
-      shape: const CircleBorder(),
-      side: BorderSide(color: p.muted, width: 1.2),
-      fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? p.accent : Colors.transparent),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
-  );
-}
-
-Widget _seccion(BuildContext c, String t, {Widget? extra}) => Padding(
-  padding: const EdgeInsets.only(bottom: 14),
-  child: Row(
-    children: [
-      Text(t, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-      const Spacer(),
-      ?extra,
-    ],
-  ),
-);
-
-Widget _punto(Color c, [double t = 6]) => Container(
-  width: t,
-  height: t,
-  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-);
 
 enum Seccion { inicio, notas, hechas, ajustes }
 
@@ -98,6 +21,55 @@ class Pantalla extends StatefulWidget {
 
 class _PantallaState extends State<Pantalla> {
   var seccion = Seccion.inicio;
+  final inicio = GlobalKey<_InicioState>();
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_tecla);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_tecla);
+    super.dispose();
+  }
+
+  // Atajos de toda la ventana. Mientras se escribe solo valen Ctrl + K y Esc, para no comerse letras ni flechas.
+  bool _tecla(KeyEvent k) {
+    if (k is! KeyDownEvent || !(ModalRoute.of(context)?.isCurrent ?? false)) return false;
+    final tecla = k.logicalKey;
+    if (HardwareKeyboard.instance.isControlPressed && tecla == LogicalKeyboardKey.keyK) {
+      _buscar();
+      return true;
+    }
+    final foco = FocusManager.instance.primaryFocus;
+    if (foco?.context?.findAncestorStateOfType<EditableTextState>() != null) {
+      if (tecla == LogicalKeyboardKey.escape) foco!.unfocus();
+      return false;
+    }
+    if (HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isAltPressed) return false;
+    if (tecla == LogicalKeyboardKey.keyN) {
+      setState(() => seccion = Seccion.inicio);
+      inicio.currentState?.cerrar();
+      WidgetsBinding.instance.addPostFrameCallback((_) => captura.requestFocus());
+      return true;
+    }
+    if (seccion == Seccion.inicio && (tecla == LogicalKeyboardKey.arrowLeft || tecla == LogicalKeyboardKey.arrowRight)) {
+      inicio.currentState?.moverMes(tecla == LogicalKeyboardKey.arrowLeft ? -1 : 1);
+      return true;
+    }
+    if (tecla == LogicalKeyboardKey.escape) return inicio.currentState?.cerrar() ?? false;
+    return false;
+  }
+
+  Future<void> _buscar() async {
+    final e = await buscar(context);
+    if (e == null || !mounted) return;
+    final f = proximaFecha(e, soloDia(DateTime.now()));
+    setState(() => seccion = e.tipo == Tipo.nota ? Seccion.notas : Seccion.inicio);
+    if (e.tipo != Tipo.nota && f != null) WidgetsBinding.instance.addPostFrameCallback((_) => inicio.currentState?.abrir(f));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +86,7 @@ class _PantallaState extends State<Pantalla> {
               VerticalDivider(width: 1, thickness: 1, color: p.line),
               Expanded(
                 child: switch (seccion) {
-                  Seccion.inicio => _Inicio(todas: todas, hoy: hoy),
+                  Seccion.inicio => _Inicio(key: inicio, todas: todas, hoy: hoy),
                   Seccion.notas => _Notas(todas: todas, hoy: hoy),
                   Seccion.hechas => _Hechas(todas: todas, hoy: hoy),
                   Seccion.ajustes => Padding(padding: const EdgeInsets.all(32), child: widget.ajustes),
@@ -161,6 +133,26 @@ class _PantallaState extends State<Pantalla> {
             item(Seccion.inicio, 'Inicio'),
             item(Seccion.notas, 'Notas'),
             item(Seccion.hechas, 'Hechas'),
+            const SizedBox(height: 14),
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: _buscar,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Buscar',
+                        style: TextStyle(color: p.muted),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text('Ctrl K', style: TextStyle(fontSize: 11.5, color: p.muted)),
+                  ],
+                ),
+              ),
+            ),
             const Spacer(),
             item(Seccion.ajustes, 'Ajustes'),
           ],
@@ -175,16 +167,34 @@ class _PantallaState extends State<Pantalla> {
 class _Inicio extends StatefulWidget {
   final List<Entrada> todas;
   final DateTime hoy;
-  const _Inicio({required this.todas, required this.hoy});
+  const _Inicio({super.key, required this.todas, required this.hoy});
   @override
   State<_Inicio> createState() => _InicioState();
 }
 
 class _InicioState extends State<_Inicio> {
   late var mes = DateTime(widget.hoy.year, widget.hoy.month);
+  DateTime? abierto; // día con el detalle abierto
+
+  void abrir(DateTime d) => setState(() {
+    abierto = d;
+    mes = DateTime(d.year, d.month);
+  });
+
+  bool cerrar() {
+    if (abierto == null) return false;
+    setState(() => abierto = null);
+    return true;
+  }
+
+  void moverMes(int n) => setState(() {
+    abierto = null;
+    mes = DateTime(mes.year, mes.month + n);
+  });
 
   @override
   // Todo entra en la ventana: los 7 días toman 2/5 del alto y el mes el resto; lo que no cabe en un día se desplaza dentro de él.
+  // El detalle de un día se abre encima de los dos.
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(36, 24, 36, 20),
     child: Column(
@@ -192,11 +202,26 @@ class _InicioState extends State<_Inicio> {
       children: [
         const _Captura(),
         const SizedBox(height: 20),
-        _seccion(context, 'Próximos 7 días'),
-        Expanded(flex: 2, child: _semana(context)),
-        const SizedBox(height: 24),
-        _seccion(context, '${_meses[mes.month - 1]} ${mes.year}', extra: _flechas(Paleta.of(context))),
-        Expanded(flex: 3, child: _mes(context)),
+        Expanded(
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  tituloSeccion(context, 'Próximos 7 días'),
+                  Expanded(flex: 2, child: _semana(context)),
+                  const SizedBox(height: 24),
+                  tituloSeccion(context, '${nombresMes[mes.month - 1]} ${mes.year}', extra: _flechas(Paleta.of(context))),
+                  Expanded(flex: 3, child: _mes(context)),
+                ],
+              ),
+              if (abierto case final d?)
+                Positioned.fill(
+                  child: DetalleDia(key: ValueKey(d), dia: d, hoy: widget.hoy, todas: widget.todas, cerrar: cerrar),
+                ),
+            ],
+          ),
+        ),
       ],
     ),
   );
@@ -214,7 +239,11 @@ class _InicioState extends State<_Inicio> {
     );
   }
 
-  Widget _dia(Paleta p, DateTime d, bool esHoy) {
+  Widget _dia(Paleta p, DateTime d, bool esHoy) => _clic(d, _diaCuerpo(p, d, esHoy));
+
+  Widget _clic(DateTime d, Widget w) => InkWell(borderRadius: BorderRadius.circular(8), onTap: () => abrir(d), child: w);
+
+  Widget _diaCuerpo(Paleta p, DateTime d, bool esHoy) {
     final items = delDia(widget.todas, d).where((e) => categoria(e) != Categoria.tarea);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
@@ -231,13 +260,13 @@ class _InicioState extends State<_Inicio> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                esHoy ? 'Hoy' : _dias[d.weekday - 1],
+                esHoy ? 'Hoy' : diasCortos[d.weekday - 1],
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: esHoy ? p.accent : p.text),
               ),
               const SizedBox(width: 6),
               Text(
                 '${d.day}',
-                style: TextStyle(fontSize: 13, color: esHoy ? p.accent : p.muted, fontFeatures: _tabular),
+                style: TextStyle(fontSize: 13, color: esHoy ? p.accent : p.muted, fontFeatures: tabular),
               ),
             ],
           ),
@@ -248,7 +277,7 @@ class _InicioState extends State<_Inicio> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(padding: const EdgeInsets.only(top: 6, right: 7), child: _punto(colorCat[categoria(e)]!, 5)),
+                  Padding(padding: const EdgeInsets.only(top: 6, right: 7), child: punto(colorCat[categoria(e)]!, 5)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,9 +285,9 @@ class _InicioState extends State<_Inicio> {
                         if (e.hora != null)
                           Text(
                             e.hora!,
-                            style: TextStyle(fontSize: 11.5, height: 1.35, color: p.muted, fontFeatures: _tabular),
+                            style: TextStyle(fontSize: 11.5, height: 1.35, color: p.muted, fontFeatures: tabular),
                           ),
-                        Text(titulo(e, d), style: const TextStyle(fontSize: 12.5, height: 1.35)),
+                        Text(tituloCorto(e, d), style: const TextStyle(fontSize: 12.5, height: 1.35)),
                       ],
                     ),
                   ),
@@ -272,13 +301,8 @@ class _InicioState extends State<_Inicio> {
 
   Widget _flechas(Paleta p) {
     final actual = mes.year == widget.hoy.year && mes.month == widget.hoy.month;
-    Widget boton(IconData i, String tip, int n) => IconButton(
-      icon: Icon(i, size: 18),
-      color: p.muted,
-      tooltip: tip,
-      visualDensity: VisualDensity.compact,
-      onPressed: () => setState(() => mes = DateTime(mes.year, mes.month + n)),
-    );
+    Widget boton(IconData i, String tip, int n) =>
+        IconButton(icon: Icon(i, size: 18), color: p.muted, tooltip: tip, visualDensity: VisualDensity.compact, onPressed: () => moverMes(n));
     return Row(
       children: [
         if (!actual)
@@ -300,7 +324,7 @@ class _InicioState extends State<_Inicio> {
       children: [
         Row(
           children: [
-            for (final d in _dias)
+            for (final d in diasCortos)
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
@@ -325,7 +349,9 @@ class _InicioState extends State<_Inicio> {
     );
   }
 
-  Widget _celda(Paleta p, DateTime d) {
+  Widget _celda(Paleta p, DateTime d) => _clic(d, _celdaCuerpo(p, d));
+
+  Widget _celdaCuerpo(Paleta p, DateTime d) {
     final esHoy = mismoDia(d, widget.hoy);
     final delMes = d.month == mes.month;
     final cuenta = <Categoria, int>{};
@@ -349,7 +375,7 @@ class _InicioState extends State<_Inicio> {
                 '${d.day}',
                 style: TextStyle(
                   fontSize: 12.5,
-                  fontFeatures: _tabular,
+                  fontFeatures: tabular,
                   color: esHoy ? (identical(p, Paleta.oscuro) ? p.bg : Colors.white) : (delMes ? p.text : p.muted), // contraste sobre el acento
                   fontWeight: esHoy ? FontWeight.w600 : null,
                 ),
@@ -367,7 +393,7 @@ class _InicioState extends State<_Inicio> {
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Row(mainAxisSize: MainAxisSize.min, spacing: 3, children: [for (var i = 0; i < (n > 2 ? 1 : n); i++) _punto(colorCat[c]!)]),
+                            Row(mainAxisSize: MainAxisSize.min, spacing: 3, children: [for (var i = 0; i < (n > 2 ? 1 : n); i++) punto(colorCat[c]!)]),
                             if (n > 2) Text('$n', style: TextStyle(fontSize: 9.5, height: 1.3, color: p.muted)),
                           ],
                         ),
@@ -472,7 +498,7 @@ class _CapturaState extends State<_Captura> {
             mainAxisSize: MainAxisSize.min,
             spacing: 6,
             children: [
-              _punto(c),
+              punto(c),
               Text(
                 nombreTipo[t]!,
                 style: TextStyle(fontSize: 12.5, color: on ? p.text : p.muted, fontWeight: on ? FontWeight.w600 : null),
@@ -519,7 +545,7 @@ class _TareasState extends State<_Tareas> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _seccion(context, 'Tareas'),
+            tituloSeccion(context, 'Tareas'),
             Wrap(
               spacing: 12,
               runSpacing: 6,
@@ -559,50 +585,50 @@ class _TareasState extends State<_Tareas> {
         : f == null
         ? null
         : [venc ? 'Vencida · ${fechaCorta(f, hoy)}' : (mismoDia(f, hoy) ? 'Hoy' : fechaCorta(f, hoy)), if (e.hora != null) e.hora!].join(' · ');
-    void marcar() {
-      completar(e, hoy, !hechaHoy);
-      cambiar();
-    }
+    void tocar() => marcar(context, e, hoy, !hechaHoy);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: marcar,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: Checkbox(value: hechaHoy, onChanged: (_) => marcar()),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 1,
-                children: [
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: e.texto,
-                          style: hechaHoy ? TextStyle(decoration: TextDecoration.lineThrough, color: p.muted) : null,
-                        ),
-                        if (e.importante)
-                          WidgetSpan(
-                            alignment: PlaceholderAlignment.middle,
-                            child: Padding(padding: const EdgeInsets.only(left: 7), child: _punto(colorCat[Categoria.imp]!)),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (meta != null) Text(meta, style: TextStyle(fontSize: 12, color: venc ? _vencida : p.muted)),
-                ],
+    return ConBorrar(
+      entrada: e,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: tocar,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: Checkbox(value: hechaHoy, onChanged: (_) => tocar()),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 1,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: e.texto,
+                            style: hechaHoy ? TextStyle(decoration: TextDecoration.lineThrough, color: p.muted) : null,
+                          ),
+                          if (e.importante)
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Padding(padding: const EdgeInsets.only(left: 7), child: punto(colorCat[Categoria.imp]!)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (meta != null) Text(meta, style: TextStyle(fontSize: 12, color: venc ? colorVencida : p.muted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -614,7 +640,7 @@ class _TareasState extends State<_Tareas> {
 Widget _pagina(BuildContext context, String t, List<Widget> filas, String vacio) => ListView(
   padding: const EdgeInsets.fromLTRB(36, 24, 36, 24),
   children: [
-    _seccion(context, t),
+    tituloSeccion(context, t),
     if (filas.isEmpty) Text(vacio, style: TextStyle(color: Paleta.of(context).muted)),
     ...filas,
   ],
@@ -635,7 +661,7 @@ Widget _filaLista(Paleta p, {required Widget inicio, required Widget texto, requ
         Expanded(child: texto),
         Text(
           fin,
-          style: TextStyle(fontSize: 12, color: p.muted, fontFeatures: _tabular),
+          style: TextStyle(fontSize: 12, color: p.muted, fontFeatures: tabular),
         ),
       ],
     ),
@@ -653,11 +679,14 @@ class _Notas extends StatelessWidget {
     final notas = todas.where((e) => e.tipo == Tipo.nota && !e.borrado).toList()..sort((a, b) => b.actualizado.compareTo(a.actualizado));
     return _pagina(context, 'Notas', [
       for (final e in notas)
-        _filaLista(
-          p,
-          inicio: Padding(padding: const EdgeInsets.only(top: 7), child: _punto(colorTipo[Tipo.nota]!)),
-          texto: Text(e.texto),
-          fin: fechaCorta(e.fecha ?? e.actualizado, hoy),
+        ConBorrar(
+          entrada: e,
+          child: _filaLista(
+            p,
+            inicio: Padding(padding: const EdgeInsets.only(top: 7), child: punto(colorTipo[Tipo.nota]!)),
+            texto: TextoEditable(entrada: e, texto: e.texto),
+            fin: fechaCorta(e.fecha ?? e.actualizado, hoy),
+          ),
         ),
     ], 'Sin notas. Escribí "nota: …" en la captura.');
   }
@@ -683,20 +712,15 @@ class _Hechas extends StatelessWidget {
           p,
           inicio: Tooltip(
             message: 'Volver a pendiente',
-            child: SizedBox(width: 20, height: 20, child: Checkbox(value: true, onChanged: (_) => _deshacer(e, h))),
+            child: SizedBox(width: 20, height: 20, child: Checkbox(value: true, onChanged: (_) => marcar(context, e, h, false))),
           ),
           texto: Text(
             e.texto,
             style: TextStyle(decoration: TextDecoration.lineThrough, color: p.muted),
           ),
           fin: '${fechaCorta(h, hoy)}  ${hm(h)}',
-          tocar: () => _deshacer(e, h),
+          tocar: () => marcar(context, e, h, false),
         ),
     ], 'Todavía no completaste ninguna tarea.');
-  }
-
-  void _deshacer(Entrada e, DateTime h) {
-    completar(e, h, false);
-    cambiar();
   }
 }

@@ -8,7 +8,7 @@ Bandeja del sistema, arranque con Windows, atajo global Ctrl + Alt + Espacio, no
 ## ✅ 1. Datos y captura automática
 Entradas guardadas en `%APPDATA%\Agenda\entradas.json`. La frase se interpreta sola (tipo, fecha, hora, repetición, importante, edad del cumpleaños).
 
-## 2. Interfaz principal ← ahora
+## ✅ 2. Interfaz principal
 - Barra izquierda: Inicio, Notas, Hechas, Ajustes.
 - Captura con burbujas de tipo y etiquetas.
 - Próximos 7 días (sin clima todavía) con eventos, cumpleaños y tareas importantes.
@@ -16,13 +16,13 @@ Entradas guardadas en `%APPDATA%\Agenda\entradas.json`. La frase se interpreta s
 - Barra derecha: tareas pendientes, filtros, completar con un clic.
 - Notas y Hechas como listas simples (en Hechas se puede desmarcar). Ajustes: arranque con Windows.
 
-## 3. Detalle del día y edición
+## ✅ 3. Detalle del día y edición
 - Clic en un día → panel con eventos, cumpleaños, tareas y hechas de ese día; captura ya puesta en esa fecha.
 - Editar el texto en el lugar, borrar con "Deshacer" (sin confirmaciones).
 - Atajos: `Ctrl + K` buscar, `N` nueva entrada, `←` / `→` mes, `Esc` cerrar.
 - Búsqueda.
 
-## 4. Alarmas de verdad
+## 4. Alarmas de verdad ← ahora
 - Valores por defecto por tipo en Ajustes; cada entrada puede tener los suyos.
 - Programar las alarmas de las próximas semanas y renovarlas al abrir.
 - Botones de la notificación conectados: Hecha, Posponer 10 min / 1 h.

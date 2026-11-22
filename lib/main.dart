@@ -10,6 +10,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
 
+import 'estilo.dart';
 import 'pantalla.dart';
 import 'datos.dart';
 

@@ -23,7 +23,8 @@ void main() {
   test('cumpleaños todos los años, 29/2 avisa el 28 en años comunes', () {
     final ana = f('cumple Ana 14/3/1996');
     expect([ocurre(ana, DateTime(2027, 3, 14)), ocurre(ana, DateTime(2040, 3, 14))], [true, true]);
-    expect(titulo(ana, DateTime(2027, 3, 14)), 'cumple Ana (31)');
+    expect(tituloCorto(ana, DateTime(2027, 3, 14)), 'Cumpleaños Ana (31)');
+    expect(tituloLargo(ana, DateTime(2027, 3, 14)), 'Cumpleaños de Ana · 31 años');
     final leo = f('cumple Leo 29/2');
     expect([ocurre(leo, DateTime(2027, 2, 28)), ocurre(leo, DateTime(2028, 2, 28)), ocurre(leo, DateTime(2028, 2, 29))], [true, false, true]);
   });
@@ -44,6 +45,29 @@ void main() {
     expect([remedio.hechas, pan.hechas], [isEmpty, isEmpty]);
   });
 
+  test('detalle del día y próxima fecha', () {
+    final hoy = DateTime(2026, 11, 21);
+    final vieja = Entrada(texto: 'vieja', tipo: Tipo.tarea, fecha: DateTime(2026, 11, 1));
+    final remedio = f('tomar remedio todos los días 08:00');
+    final luz = f('pagar luz hoy!');
+    final todas = [vieja, remedio, luz, f('cena 21hs')];
+    expect(tareasDelDia(todas, hoy, hoy), [luz, remedio, vieja]); // hoy suma vencidas
+    expect(tareasDelDia(todas, DateTime(2026, 11, 22), hoy), [remedio]);
+
+    completar(remedio, hoy, true);
+    expect([tareasDelDia(todas, hoy, hoy), hechasDelDia(todas, hoy)], [
+      [luz, vieja],
+      [remedio],
+    ]);
+
+    vieja.borrado = true;
+    expect(tareasDelDia(todas, hoy, hoy), [luz]);
+
+    expect(proximaFecha(f('cumple Ana 14/3/1996'), hoy), DateTime(2027, 3, 14));
+    expect(proximaFecha(f('yoga todos los lunes'), hoy), DateTime(2026, 11, 23));
+    expect(proximaFecha(f('comprar pan'), hoy), isNull);
+  });
+
   test('delDia y pendientes', () {
     final todas = [
       f('cena 21hs'),
@@ -55,8 +79,8 @@ void main() {
       Entrada(texto: 'vieja', tipo: Tipo.tarea, fecha: DateTime(2026, 11, 1)),
     ];
     // Sin repetitiva común (llenaría todos los días), sin nota; con hora primero.
-    expect([for (final e in delDia(todas, DateTime(2026, 11, 21))) e.texto], ['cena', 'cumple Ana', 'pagar luz']);
-    expect([for (final e in pendientes(todas)) e.texto], ['pagar luz', 'tomar remedio', 'vieja', 'comprar pan']);
+    expect([for (final e in delDia(todas, DateTime(2026, 11, 21))) e.texto], ['Cena', 'Ana', 'Pagar luz']);
+    expect([for (final e in pendientes(todas)) e.texto], ['Pagar luz', 'Tomar remedio', 'vieja', 'Comprar pan']);
     expect(vencida(todas.last, DateTime(2026, 11, 21)), isTrue);
   });
 }
