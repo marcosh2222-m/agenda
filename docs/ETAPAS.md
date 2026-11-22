@@ -22,21 +22,21 @@ Entradas guardadas en `%APPDATA%\Agenda\entradas.json`. La frase se interpreta s
 - Atajos: `Ctrl + K` buscar, `N` nueva entrada, `←` / `→` mes, `Esc` cerrar.
 - Búsqueda.
 
-## 4. Alarmas de verdad ← ahora
-- Valores por defecto por tipo en Ajustes; cada entrada puede tener los suyos.
-- Programar las alarmas de las próximas semanas y renovarlas al abrir.
-- Botones de la notificación conectados: Hecha, Posponer 10 min / 1 h.
-- Alarmas varias veces por día en tareas; dejan de sonar al completar la del día.
-- Cumpleaños 29/2 en años no bisiestos.
-- Al despertar la PC: avisar las alarmas perdidas.
+## ✅ 4. Alarmas de verdad
+- Valores por defecto por tipo en Ajustes; cada entrada puede tener los suyos (campana en el detalle del día).
+- La app revisa cada 30 s qué tiene que sonar (queda en la bandeja); no se programan en Windows. Con la app cerrada no suena nada.
+- Botones de la notificación conectados: Hecha (solo tareas), Posponer 10 min / 1 h.
+- Alarmas varias veces por día en tareas ("8:00, 14:00 y 22:00"); dejan de sonar al completar la del día. "Avisame 30 min antes" en la captura.
+- Cumpleaños 29/2 en años no bisiestos: avisa el 28/2 "(cumple el 29/2)".
+- Al despertar la PC: una notificación con las alarmas perdidas.
 
-## 5. Rapidez y comodidad
-- Cajita flotante de captura con Ctrl + Alt + Espacio (Enter guarda, Esc cierra).
+## ✅ 5. Rapidez y comodidad
+- Cajita flotante de captura con el atajo global, configurable en Ajustes (Enter guarda, Esc cierra). Con la agenda a la vista, el atajo pone el cursor en la captura.
 - Botón de micrófono que abre el dictado de Windows (Win + H).
-- Resumen del día al prender la PC, una vez por día.
-- Copia automática diaria a una carpeta elegida (últimas 30).
+- Resumen del día al abrir la app (arranca con Windows), una vez por día.
+- Copia automática diaria a una carpeta elegida en Ajustes (últimas 30).
 
-## 6. Clima
+## 6. Clima ← ahora
 Open-Meteo, ciudad en Ajustes, último clima guardado si no hay internet.
 
 ## 7. Pulido y versión instalable

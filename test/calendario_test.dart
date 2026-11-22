@@ -6,9 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 final ahora = DateTime(2026, 11, 21, 12); // sábado
 Entrada f(String frase) => interpretar(frase, ahora);
 List<int> diasDe(Entrada e, int desde, int hasta) => [
-      for (var d = desde; d <= hasta; d++)
-        if (ocurre(e, DateTime(2026, 11, d))) d
-    ];
+  for (var d = desde; d <= hasta; d++)
+    if (ocurre(e, DateTime(2026, 11, d))) d,
+];
 
 void main() {
   test('repeticiones', () {
@@ -55,10 +55,13 @@ void main() {
     expect(tareasDelDia(todas, DateTime(2026, 11, 22), hoy), [remedio]);
 
     completar(remedio, hoy, true);
-    expect([tareasDelDia(todas, hoy, hoy), hechasDelDia(todas, hoy)], [
-      [luz, vieja],
-      [remedio],
-    ]);
+    expect(
+      [tareasDelDia(todas, hoy, hoy), hechasDelDia(todas, hoy)],
+      [
+        [luz, vieja],
+        [remedio],
+      ],
+    );
 
     vieja.borrado = true;
     expect(tareasDelDia(todas, hoy, hoy), [luz]);

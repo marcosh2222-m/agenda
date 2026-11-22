@@ -2,13 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'alarmas.dart';
 import 'calendario.dart';
 import 'captura.dart';
 import 'datos.dart';
 import 'dia.dart';
 import 'estilo.dart';
+import 'voz.dart';
 
 final captura = FocusNode();
+
+/// Mientras Ajustes graba un atajo, los atajos de la ventana se apagan.
+var grabandoAtajo = false;
 
 enum Seccion { inicio, notas, hechas, ajustes }
 
@@ -37,6 +42,7 @@ class _PantallaState extends State<Pantalla> {
 
   // Atajos de toda la ventana. Mientras se escribe solo valen Ctrl + K y Esc, para no comerse letras ni flechas.
   bool _tecla(KeyEvent k) {
+    if (grabandoAtajo) return false; // Ajustes está grabando un atajo nuevo
     if (k is! KeyDownEvent || !(ModalRoute.of(context)?.isCurrent ?? false)) return false;
     final tecla = k.logicalKey;
     if (HardwareKeyboard.instance.isControlPressed && tecla == LogicalKeyboardKey.keyK) {
@@ -200,7 +206,7 @@ class _InicioState extends State<_Inicio> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _Captura(),
+        const Captura(),
         const SizedBox(height: 20),
         Expanded(
           child: Stack(
@@ -408,22 +414,84 @@ class _InicioState extends State<_Inicio> {
   }
 }
 
-class _Captura extends StatefulWidget {
-  const _Captura();
+/// Cajita flotante del atajo global: solo la captura. Enter guarda y cierra; Esc cierra sin guardar.
+class Cajita extends StatefulWidget {
+  final VoidCallback cerrar;
+  const Cajita({super.key, required this.cerrar});
   @override
-  State<_Captura> createState() => _CapturaState();
+  State<Cajita> createState() => _CajitaState();
 }
 
-class _CapturaState extends State<_Captura> {
+/// Abre en Nota; Tab cambia a eventos y tareas.
+class _CajitaState extends State<Cajita> {
+  var nota = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Paleta.of(context);
+    Widget modo(String t, bool esNota) => InkWell(
+      onTap: () => setState(() => nota = esNota),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: nota == esNota ? p.text : Colors.transparent)),
+        ),
+        child: Text(t, style: TextStyle(fontSize: 12.5, color: nota == esNota ? p.text : p.muted)),
+      ),
+    );
+    return Scaffold(
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): widget.cerrar,
+          const SingleActivator(LogicalKeyboardKey.tab): () => setState(() => nota = !nota),
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Row(
+                  spacing: 14,
+                  children: [
+                    modo('Nota', true),
+                    modo('Evento o tarea', false),
+                    Text('Tab cambia', style: TextStyle(fontSize: 11.5, color: p.muted)),
+                  ],
+                ),
+              ),
+              Captura(alGuardar: widget.cerrar, nota: nota),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class Captura extends StatefulWidget {
+  final VoidCallback? alGuardar; // la cajita flotante se cierra al guardar
+  final bool nota; // guarda el texto tal cual como nota, sin buscar fechas ni horas
+  const Captura({super.key, this.alGuardar, this.nota = false});
+  @override
+  State<Captura> createState() => _CapturaState();
+}
+
+class _CapturaState extends State<Captura> {
   final texto = TextEditingController();
   Tipo? forzado;
   String? aviso;
 
   Future<void> guardarFrase() async {
     if (texto.text.trim().isEmpty) return;
-    final e = interpretar(texto.text, DateTime.now(), tipo: forzado);
+    final e = widget.nota ? Entrada(texto: formatear(texto.text.trim(), Tipo.nota), tipo: Tipo.nota) : interpretar(texto.text, DateTime.now(), tipo: forzado);
     await agregar(e);
     texto.clear();
+    if (widget.alGuardar case final cerrar?) {
+      setState(() => forzado = null);
+      return cerrar();
+    }
     setState(() {
       forzado = null;
       aviso = e.tipo == Tipo.nota ? 'Guardado en Notas' : 'Guardado';
@@ -437,31 +505,34 @@ class _CapturaState extends State<_Captura> {
   @override
   Widget build(BuildContext context) {
     final p = Paleta.of(context);
-    final e = texto.text.trim().isEmpty ? null : interpretar(texto.text, DateTime.now(), tipo: forzado);
+    final e = texto.text.trim().isEmpty || widget.nota ? null : interpretar(texto.text, DateTime.now(), tipo: forzado); // la nota no se interpreta
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          padding: const EdgeInsets.fromLTRB(6, 8, 8, 8),
           decoration: BoxDecoration(color: p.panel, borderRadius: BorderRadius.circular(10)),
           child: Row(
             children: [
+              _microfono(p),
               Expanded(
                 child: TextField(
                   focusNode: captura,
+                  autofocus: widget.alGuardar != null,
                   controller: texto,
                   style: const TextStyle(fontSize: 15),
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
-                    hintText: 'Escribí algo: reunión con Juan viernes 10hs, cumple de Ana 14/3…',
+                    hintText: widget.nota ? 'Escribí una nota…' : 'Escribí algo: reunión con Juan viernes 10hs, cumple de Ana 14/3…',
                     hintStyle: TextStyle(color: p.muted),
                   ),
                   onChanged: (_) => setState(() => aviso = null),
                   onSubmitted: (_) => guardarFrase(),
                 ),
               ),
-              for (final t in [Tipo.tarea, Tipo.evento, Tipo.cumple, Tipo.nota]) _tipo(p, t, e?.tipo == t),
+              if (!widget.nota)
+                for (final t in [Tipo.tarea, Tipo.evento, Tipo.cumple, Tipo.nota]) _tipo(p, t, e?.tipo == t),
             ],
           ),
         ),
@@ -469,15 +540,51 @@ class _CapturaState extends State<_Captura> {
           padding: const EdgeInsets.fromLTRB(16, 6, 0, 0),
           child: SizedBox(
             height: 18,
-            child: Text(
-              aviso ?? (e == null ? '' : describir(e, DateTime.now()).join('   ·   ')),
-              style: TextStyle(fontSize: 12.5, color: aviso != null ? colorTipo[Tipo.evento] : p.muted),
+            child: ValueListenableBuilder(
+              valueListenable: avisoVoz,
+              builder: (context, voz, _) => Text(
+                voz ?? aviso ?? (e == null ? '' : describir(e, DateTime.now()).join('   ·   ')),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, color: voz == null && aviso != null ? colorTipo[Tipo.evento] : p.muted),
+              ),
             ),
           ),
         ),
       ],
     );
   }
+
+  /// Micrófono: dicta en español con Whisper; lo dictado se suma a lo que haya escrito.
+  Widget _microfono(Paleta p) => ListenableBuilder(
+    listenable: Listenable.merge([estadoVoz, progresoVoz]),
+    builder: (context, _) {
+      Widget girando([double? v]) => SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(value: v, strokeWidth: 2, color: p.muted),
+      );
+      final (icono, ayuda) = switch (estadoVoz.value) {
+        EstadoVoz.listo => (Icon(Icons.mic_none, size: 18, color: p.muted), 'Dictar en español'),
+        EstadoVoz.descargando => (girando(progresoVoz.value), 'Descargando el reconocimiento de voz (157 MB, una sola vez)…'),
+        EstadoVoz.grabando => (Icon(Icons.stop_circle_outlined, size: 20, color: colorCat[Categoria.imp]), 'Terminar de dictar'),
+        EstadoVoz.transcribiendo => (girando(), 'Pasando a texto…'),
+      };
+      return IconButton(
+        icon: icono,
+        tooltip: ayuda,
+        visualDensity: VisualDensity.compact,
+        onPressed: () async {
+          final dicho = await tocarMicrofono();
+          if (dicho == null || dicho.isEmpty || !mounted) return;
+          texto.text = [texto.text.trim(), dicho].where((s) => s.isNotEmpty).join(' ');
+          texto.selection = TextSelection.collapsed(offset: texto.text.length);
+          setState(() => aviso = null);
+          captura.requestFocus();
+        },
+      );
+    },
+  );
 
   Widget _tipo(Paleta p, Tipo t, bool on) {
     final c = colorTipo[t]!;
@@ -581,7 +688,12 @@ class _TareasState extends State<_Tareas> {
     final venc = vencida(e, hoy);
     final f = e.fecha;
     final meta = e.repeticion != null
-        ? [textoRepeticion(e.repeticion!), if (e.hora != null) e.hora!, if (hechaHoy) 'hecha hoy'].join(' · ')
+        ? [
+            textoRepeticion(e.repeticion!),
+            if (e.hora != null) e.hora!,
+            if (e.alarmas case final a? when a.isNotEmpty && e.hora == null) a.map(textoAlarma).join(', '),
+            if (hechaHoy) 'hecha hoy',
+          ].join(' · ')
         : f == null
         ? null
         : [venc ? 'Vencida · ${fechaCorta(f, hoy)}' : (mismoDia(f, hoy) ? 'Hoy' : fechaCorta(f, hoy)), if (e.hora != null) e.hora!].join(' · ');

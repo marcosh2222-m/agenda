@@ -1,4 +1,5 @@
 // Captura automática: una frase → Entrada. Reglas fijas, sin internet ni IA (ver docs/CONCEPTO.md).
+import 'alarmas.dart';
 import 'datos.dart';
 
 const _diaRe = r'(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)s?';
@@ -75,16 +76,26 @@ Entrada interpretar(String frase, DateTime ahora, {Tipo? tipo}) {
         return true;
       });
 
+  // "avisame 30 min antes", "1 h antes": antes que la hora, para que "1 h" no se lea como la una.
+  List<String>? alarmas;
+  saca(r'\b(?:(?:avisame|avisar|recordame|alarma)\s+)?(\d+)\s*(min(?:utos)?|h(?:s|oras?)?)\s+antes\b', (m) {
+    final n = int.parse(m[1]!);
+    alarmas = ['antes ${m[2]!.startsWith('m') ? n : n * 60}'];
+    return true;
+  });
+
+  final horas = <String>[]; // varias horas: "tomar remedio 8:00, 14:00 y 22:00"
   bool usarHora(String h, String? m) {
     final hh = int.parse(h), mm = int.parse(m ?? '0');
     if (hh > 23 || mm > 59) return false;
-    hora = _hora(hh, mm);
+    horas.add(_hora(hh, mm));
     return true;
   }
 
-  saca(r'\ba las (\d{1,2})(?::(\d{2}))?\s*(?:hs?)?\b', (m) => usarHora(m[1]!, m[2])) ||
+  while (saca(r'\ba las (\d{1,2})(?::(\d{2}))?\s*(?:hs?)?\b', (m) => usarHora(m[1]!, m[2])) ||
       saca(r'\b(\d{1,2}):(\d{2})\s*(?:hs?)?\b', (m) => usarHora(m[1]!, m[2])) ||
-      saca(r'\b(\d{1,2})\s*hs?\b', (m) => usarHora(m[1]!, null));
+      saca(r'\b(\d{1,2})\s*hs?\b', (m) => usarHora(m[1]!, null))) {}
+  hora = horas.firstOrNull;
 
   var conAnio = false; // la frase dijo el año ("14/3/1996")
   bool usarFecha(int d, int m, String? anio) {
@@ -134,8 +145,13 @@ Entrada interpretar(String frase, DateTime ahora, {Tipo? tipo}) {
       ? Tipo.nota
       : Tipo.tarea;
 
+  // Tarea con varias horas: cada una es una alarma de ese día, sin hora propia.
+  if (tipo == Tipo.tarea && horas.length > 1) {
+    alarmas = [for (final h in horas) '0 $h'];
+    hora = null;
+  }
   // Lo repetido arranca hoy si no se dijo otra cosa.
-  if (fecha == null && (tipo == Tipo.evento || (tipo == Tipo.tarea && (hora != null || rep != null)))) fecha = hoy;
+  if (fecha == null && (tipo == Tipo.evento || (tipo == Tipo.tarea && (hora != null || rep != null || alarmas != null)))) fecha = hoy;
   if (tipo == Tipo.cumple) {
     rep = const Repeticion('anio');
     // "mañana", "el viernes": es el día del cumpleaños, no el año en que nació.
@@ -146,7 +162,7 @@ Entrada interpretar(String frase, DateTime ahora, {Tipo? tipo}) {
     }
   }
 
-  return Entrada(texto: formatear(texto, tipo), tipo: tipo, fecha: fecha, hora: hora, repeticion: rep, importante: importante);
+  return Entrada(texto: formatear(texto, tipo), tipo: tipo, fecha: fecha, hora: hora, repeticion: rep, importante: importante, alarmas: alarmas);
 }
 
 /// Formato al guardar: los cumpleaños guardan solo el nombre; lo demás, mayúscula inicial.
@@ -204,6 +220,7 @@ List<String> describir(Entrada e, DateTime ahora) {
     if (f != null && e.tipo != Tipo.cumple) fechaCorta(f, ahora),
     if (e.hora != null) e.hora!,
     if (r != null && e.tipo != Tipo.cumple) textoRepeticion(r),
+    if (e.alarmas case final a? when a.isNotEmpty) 'avisa ${a.map(textoAlarma).join(', ')}',
   ];
 }
 

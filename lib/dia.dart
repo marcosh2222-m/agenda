@@ -1,6 +1,7 @@
 // Detalle de un día y búsqueda.
 import 'package:flutter/material.dart';
 
+import 'alarmas.dart';
 import 'calendario.dart';
 import 'captura.dart';
 import 'datos.dart';
@@ -196,12 +197,63 @@ class _DetalleDiaState extends State<DetalleDia> {
                   ),
                   if (meta.isNotEmpty)
                     Text(meta.join(' · '), style: TextStyle(fontSize: 12, color: meta.any((m) => m.startsWith('Vencida')) ? colorVencida : p.muted)),
+                  if (hecha != true) _alarmas(p, e),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  String? alarmasAbiertas; // id de la entrada con el editor de alarmas abierto
+
+  /// Campana con las alarmas de la entrada; un clic abre el editor.
+  Widget _alarmas(Paleta p, Entrada e) {
+    final lista = alarmasDe(e);
+    final abierto = alarmasAbiertas == e.id;
+    void poner(List<String>? a) {
+      e.alarmas = a;
+      e.actualizado = DateTime.now();
+      cambiar();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(4),
+          onTap: () => setState(() => alarmasAbiertas = abierto ? null : e.id),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                Icon(lista.isEmpty ? Icons.notifications_off_outlined : Icons.notifications_none, size: 13, color: p.muted),
+                Text(lista.isEmpty ? 'Sin alarma' : lista.map(textoAlarma).join(', '), style: TextStyle(fontSize: 12, color: p.muted)),
+              ],
+            ),
+          ),
+        ),
+        if (abierto)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                EditorAlarmas(alarmas: lista, cambiar: poner),
+                if (e.alarmas != null)
+                  TextButton(
+                    onPressed: () => poner(null),
+                    style: TextButton.styleFrom(foregroundColor: p.muted, padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                    child: const Text('Usar las de Ajustes', style: TextStyle(fontSize: 12)),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

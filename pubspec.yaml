@@ -12,6 +12,7 @@ dependencies:
   flutter_local_notifications: ^23.0.3
   hotkey_manager: ^0.4.0
   material_ui: ^1.1.0
+  record: ^7.2.0
   timezone: ^0.11.2
   tray_manager: ^0.9.0
   window_manager: ^0.7.0

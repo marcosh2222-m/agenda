@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'alarmas.dart';
 import 'calendario.dart';
 import 'datos.dart';
 
@@ -195,6 +196,84 @@ class _ConBorrarState extends State<ConBorrar> {
       ],
     ),
   );
+}
+
+/// Alarmas editables: cada una con su ×, y una caja para agregar ("30 min antes", "09:00", "día anterior 20:00").
+class EditorAlarmas extends StatefulWidget {
+  final List<String> alarmas;
+  final ValueChanged<List<String>> cambiar;
+  const EditorAlarmas({super.key, required this.alarmas, required this.cambiar});
+  @override
+  State<EditorAlarmas> createState() => _EditorAlarmasState();
+}
+
+class _EditorAlarmasState extends State<EditorAlarmas> {
+  final texto = TextEditingController();
+  String? error;
+
+  void agregarAlarma() {
+    final a = leerAlarma(texto.text);
+    if (a == null) {
+      setState(() => error = texto.text.trim().isEmpty ? null : 'No entendí "${texto.text.trim()}"');
+      return;
+    }
+    if (!widget.alarmas.contains(a)) widget.cambiar([...widget.alarmas, a]);
+    texto.clear();
+    setState(() => error = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Paleta.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final a in widget.alarmas)
+              Container(
+                padding: const EdgeInsets.fromLTRB(10, 3, 5, 3),
+                decoration: BoxDecoration(color: p.panel, borderRadius: BorderRadius.circular(99)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 4,
+                  children: [
+                    Text(textoAlarma(a), style: const TextStyle(fontSize: 12.5)),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 13),
+                      tooltip: 'Quitar',
+                      color: p.muted,
+                      visualDensity: VisualDensity.compact,
+                      style: IconButton.styleFrom(minimumSize: const Size(22, 22), padding: EdgeInsets.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      onPressed: () => widget.cambiar([...widget.alarmas]..remove(a)),
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(
+              width: 210,
+              child: TextField(
+                controller: texto,
+                style: const TextStyle(fontSize: 12.5),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: widget.alarmas.isEmpty ? 'Sin alarma · agregar: 09:00, 1 h antes…' : 'Agregar otra…',
+                  hintStyle: TextStyle(color: p.muted),
+                ),
+                onSubmitted: (_) => agregarAlarma(),
+              ),
+            ),
+          ],
+        ),
+        if (error != null) Text(error!, style: TextStyle(fontSize: 12, color: colorCat[Categoria.imp])),
+      ],
+    );
+  }
 }
 
 void avisar(BuildContext c, String mensaje, VoidCallback deshacer) {

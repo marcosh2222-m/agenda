@@ -23,13 +23,24 @@ void main() {
   caso('pasado mañana reunión', Tipo.tarea, 'Reunión', fecha: DateTime(2026, 11, 23));
   caso('cena con Pablo 25 de diciembre 21hs', Tipo.evento, 'Cena con Pablo', fecha: DateTime(2026, 12, 25), hora: '21:00');
   caso('cumple Juan 29 de febrero', Tipo.cumple, 'Juan', fecha: DateTime(0, 2, 29));
-  caso('Una idea larga sobre cómo organizar la mudanza y qué cosas llevar primero', Tipo.nota,
-      'Una idea larga sobre cómo organizar la mudanza y qué cosas llevar primero');
+  caso(
+    'Una idea larga sobre cómo organizar la mudanza y qué cosas llevar primero',
+    Tipo.nota,
+    'Una idea larga sobre cómo organizar la mudanza y qué cosas llevar primero',
+  );
   caso('reunión 31/2', Tipo.tarea, 'Reunión 31/2'); // fecha imposible: no se toca
 
   test('repeticiones', () {
     final yoga = interpretar('yoga todos los lunes y miércoles 19hs', ahora);
-    expect([yoga.tipo, yoga.texto, yoga.hora, yoga.repeticion!.dias], [Tipo.evento, 'Yoga', '19:00', [1, 3]]);
+    expect(
+      [yoga.tipo, yoga.texto, yoga.hora, yoga.repeticion!.dias],
+      [
+        Tipo.evento,
+        'Yoga',
+        '19:00',
+        [1, 3],
+      ],
+    );
     expect(describir(yoga, ahora), ['sáb 21/11', '19:00', 'todos los lun, mié']);
 
     final regar = interpretar('regar plantas cada 3 días', ahora);

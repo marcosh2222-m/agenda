@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  cajita();
+
   testWidgets('detalle del día, borrar con Deshacer y atajos', (t) async {
     archivoDatos = File('${Directory.systemTemp.createTempSync('agenda').path}/entradas.json'); // nunca el archivo real
     final ahora = DateTime.now();
@@ -18,7 +20,12 @@ void main() {
     t.view.physicalSize = const Size(1440, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await t.pumpWidget(MaterialApp(theme: tema(Brightness.light), home: const Pantalla(ajustes: SizedBox())));
+    await t.pumpWidget(
+      MaterialApp(
+        theme: tema(Brightness.light),
+        home: const Pantalla(ajustes: SizedBox()),
+      ),
+    );
 
     // Clic en el día → detalle; borrar y deshacer.
     await t.tap(find.text('Dentista'));
@@ -63,5 +70,37 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(DetalleDia), findsOneWidget);
+  });
+}
+
+void cajita() {
+  testWidgets('la cajita abre en Nota y Tab pasa a eventos', (t) async {
+    archivoDatos = File('${Directory.systemTemp.createTempSync('agenda').path}/entradas.json');
+    entradas.value = [];
+    var cerrada = false;
+    await t.pumpWidget(MaterialApp(theme: tema(Brightness.light), home: Cajita(cerrar: () => cerrada = true)));
+    await t.pump();
+    // Nota: se guarda tal cual, sin buscar fechas ni horas.
+    await t.enterText(find.byType(TextField), 'ideas para el viaje el martes 10hs');
+    await t.testTextInput.receiveAction(TextInputAction.done);
+    for (var i = 0; i < 10; i++) {
+      // el guardado en disco avanza con tiempo real, paso a paso
+      await t.runAsync(() => Future.delayed(const Duration(milliseconds: 30)));
+      await t.pump();
+    }
+    expect([entradas.value.single.tipo, entradas.value.single.texto, entradas.value.single.fecha, cerrada], [
+      Tipo.nota,
+      'Ideas para el viaje el martes 10hs',
+      null,
+      true,
+    ]);
+    // Tab: eventos y tareas, con la interpretación de siempre.
+    await t.tap(find.byType(TextField));
+    await t.sendKeyEvent(LogicalKeyboardKey.tab);
+    await t.pump();
+    await t.enterText(find.byType(TextField), 'dentista el martes 10hs');
+    await t.testTextInput.receiveAction(TextInputAction.done);
+    await t.pump();
+    expect([entradas.value.last.tipo, entradas.value.last.hora], [Tipo.evento, '10:00']);
   });
 }
