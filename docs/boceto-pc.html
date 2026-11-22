@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda — Boceto PC</title>
+<style>
+:root {
+  --bg: #f5efe3; --surface: #faf6ee; --line: #e2d9c8; --text: #2f2a23; --muted: #948a7b; --hover: #ede5d5;
+  --panel: #ede4d3; --panel-hover: #e4d9c4; --side: #fbf8f1;
+  --accent: #b9683c;
+  --tarea: #4d8ee3; --evento: #43a85a; --nota: #f08a2c; --cumple: #9268e3; --imp: #e4483f; --vencida: #a8805f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1d1a16; --surface: #24201b; --line: #36302a; --text: #ece5d8; --muted: #978d7f; --hover: #2b2620; --accent: #e09668;
+    --panel: #26221c; --panel-hover: #2f2a23; --side: #181612; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; height: 100vh; display: grid; grid-template-columns: 180px minmax(0, 1fr) 290px; background: var(--bg); color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+aside, main { overflow-y: auto; }
+button { font: inherit; color: inherit; }
+
+/* Barra izquierda */
+/* Barras laterales: un tono más claro que el centro, como papel encima */
+.nav, .tareas { background: var(--side); box-shadow: 0 0 24px rgb(90 70 40 / .06); position: relative; }
+.nav { padding: 22px 18px 22px 8px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.nav h1 { font-size: 15px; font-weight: 600; margin: 0 0 22px 10px; }
+.nav a { padding: 5px 10px; color: var(--muted); text-decoration: none; }
+.nav a:hover, .nav a.on { color: var(--text); }
+.nav a.on { font-weight: 600; box-shadow: inset 2px 0 var(--accent); }
+.nav .sep { flex: 1; }
+
+/* Centro: sectores separados por líneas, sin cajas */
+main { padding: 18px 28px; display: flex; flex-direction: column; gap: 20px; }
+.captura { display: flex; gap: 14px; align-items: center; background: var(--panel); border-radius: 8px; padding: 6px 14px; }
+.interp { padding-left: 14px; }
+.mic { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 4px; margin-right: -6px; border-radius: 50%; display: grid; place-items: center; }
+.mic:hover { color: var(--text); background: var(--panel-hover); }
+.captura input { flex: 1; border: 0; background: none; color: var(--text); font: inherit; font-size: 15px; outline: none; padding: 4px 0; }
+.captura input::placeholder { color: var(--muted); opacity: .8; }
+.chip { border: 0; background: none; color: var(--muted); padding: 2px 0; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid transparent; }
+.chip:hover { color: var(--text); }
+.chip.on { color: var(--text); border-bottom-color: var(--text); }
+.filtros { display: flex; gap: 12px; flex-wrap: wrap; }
+/* Tipos: burbujas con el color de cada tipo */
+#tipos { display: flex; gap: 6px; flex-wrap: wrap; }
+#tipos .chip { --c: var(--tarea); background: color-mix(in srgb, var(--c) 30%, transparent); color: var(--text);
+  border: 1px solid transparent; border-radius: 999px; padding: 3px 11px; }
+#tipos [data-t=evento] { --c: var(--evento); }
+#tipos [data-t=cumple] { --c: var(--cumple); }
+#tipos [data-t=nota] { --c: var(--nota); }
+#tipos .chip:hover { background: color-mix(in srgb, var(--c) 48%, transparent); }
+#tipos .chip.on { background: var(--c); border-color: var(--c); color: #fff; font-weight: 600; }
+.cap-wrap { display: flex; flex-direction: column; gap: 4px; }
+.interp { display: flex; flex-wrap: wrap; min-height: 20px; font-size: 12.5px; color: var(--muted); }
+.tag + .tag::before { content: "·"; margin: 0 8px; }
+.ok { color: #6f9a74; }
+
+h2 { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.dia { background: var(--panel); border-radius: 8px; padding: 10px 12px 8px; min-height: 150px; cursor: pointer; }
+.dia:hover { background: var(--panel-hover); }
+.dia.hoy { box-shadow: inset 0 3px var(--accent); }
+.dia .cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+.dia .nom { font-weight: 600; }
+.dia.hoy .nom, .dia.hoy .cab .h { color: var(--accent); }
+.dia .clima { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.item { display: flex; gap: 6px; align-items: baseline; font-size: 12.5px; margin-bottom: 5px; }
+.item .h { color: var(--muted); font-variant-numeric: tabular-nums; }
+.p { width: 6px; height: 6px; border-radius: 50%; flex: none; transform: translateY(-1px); }
+.p.evento { background: var(--evento); } .p.cumple { background: var(--cumple); } .p.imp { background: var(--imp); } .p.tarea { background: var(--tarea); }
+
+/* Grilla del mes */
+.mes { position: relative; flex: 1; min-height: 380px; display: flex; flex-direction: column; }
+/* Las flechas viven en el margen entre la grilla y las barras laterales */
+.mes-cuerpo { flex: 1; display: grid; grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 2px; margin: 0 -26px; }
+.flecha { align-self: center; height: 92%; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0; }
+.flecha:hover { background: var(--hover); color: var(--text); }
+.grilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: auto repeat(6, minmax(52px, 1fr));
+  background: var(--panel); border-radius: 8px; padding: 10px 12px 4px; }
+.grilla .ds { padding: 0 4px 8px; font-size: 12px; color: var(--muted); }
+.celda { padding: 6px 4px 6px 8px; border-top: 1px solid var(--line); cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; }
+.celda:hover { background: var(--panel-hover); }
+.celda.fuera { color: var(--muted); opacity: .45; }
+.celda .n { font-size: 13px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; margin: -3px 0 0 -6px; }
+.celda.hoy .n { background: var(--accent); color: #fff; font-weight: 600; }
+.puntos { display: flex; gap: 7px; align-items: flex-start; min-height: 18px; }
+.grupo { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.grupo .fila { display: flex; gap: 3px; }
+.grupo .num { font-size: 9.5px; line-height: 1; color: var(--muted); }
+
+/* Detalle del día: único elemento flotante */
+.detalle { position: absolute; inset: 30px 5% auto; max-height: calc(100% - 40px); overflow-y: auto; z-index: 2; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px;
+  box-shadow: 0 10px 30px rgb(60 45 20 / .10); display: none; }
+.detalle.on { display: block; }
+.detalle .cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.detalle h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.detalle button.x { border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+.detalle .item { font-size: 14px; margin-bottom: 8px; }
+.detalle .vacio { color: var(--muted); }
+.detalle .captura { margin-top: 14px; }
+.detalle .cab { align-items: flex-start; }
+.detalle .sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.detalle .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.detalle h4 { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 8px 0 4px; }
+.detalle .vacio { font-size: 13px; margin: 4px 0; }
+.fd { display: flex; gap: 9px; align-items: baseline; padding: 6px 6px; margin: 0 -6px; border-radius: 6px; }
+.fd:hover { background: var(--hover); }
+.fd input { accent-color: var(--accent); transform: translateY(2px); cursor: pointer; }
+.fd .txt { flex: 1; }
+.fd .h { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.fd .meta { font-size: 12px; color: var(--muted); }
+.fd .venc { color: var(--vencida); }
+.fd .star { color: var(--imp); font-size: 12px; }
+.fd.hecha .txt { text-decoration: line-through; color: var(--muted); }
+.fd .borrar { border: 0; background: none; color: var(--muted); font-size: 17px; line-height: 1; cursor: pointer; opacity: 0; }
+.fd:hover .borrar { opacity: 1; }
+.fd .borrar:hover { color: var(--imp); }
+.aviso { min-height: 20px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.undo { border: 0; background: none; padding: 0; margin-left: 4px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+/* Barra derecha */
+.tareas { padding: 22px 20px; border-left: 1px solid var(--line); }
+.filtros { row-gap: 4px; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.ft { display: flex; gap: 10px; padding: 9px 0; align-items: flex-start; cursor: pointer; }
+.ft + .ft { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.ft input { margin: 3px 0 0; accent-color: var(--accent); }
+.ft .txt { flex: 1; }
+.ft .meta { font-size: 12px; color: var(--muted); }
+.ft .meta.venc { color: var(--vencida); }
+.ft .star { color: var(--imp); font-size: 12px; }
+.ft.hecha .txt { text-decoration: line-through; color: var(--muted); }
+.nota { font-size: 12px; color: var(--muted); margin-top: 18px; }
+</style>
+</head>
+<body>
+
+<aside class="nav">
+  <h1>Agenda</h1>
+  <a href="#" class="on">Inicio</a>
+  <a href="#">Notas</a>
+  <a href="#">Hechas</a>
+  <div class="sep"></div>
+  <a href="#">Ajustes</a>
+</aside>
+
+<main>
+  <div class="cap-wrap">
+    <div class="captura">
+      <button class="mic" id="mic" title="Dictar (Win + H)" aria-label="Dictar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <input id="cap" placeholder="Ej.: reunión con Juan viernes 10hs · cumple de Ana 14/3 · pagar alquiler mañana !">
+      <span id="tipos"><button class="chip" data-t="tarea">Tarea</button> <button class="chip" data-t="evento">Evento</button> <button class="chip" data-t="cumple">Cumpleaños</button> <button class="chip" data-t="nota">Nota</button></span>
+    </div>
+    <div class="interp" id="interp"></div>
+  </div>
+
+  <section>
+    <h2>Próximos 7 días</h2>
+    <div class="semana" id="semana"></div>
+  </section>
+
+  <section class="mes">
+    <h2 id="titMes"></h2>
+    <div class="mes-cuerpo">
+      <button class="flecha" id="ant" title="Mes anterior">‹</button>
+      <div class="grilla" id="grilla"></div>
+      <button class="flecha" id="sig" title="Mes siguiente">›</button>
+    </div>
+    <div class="detalle" id="detalle"></div>
+  </section>
+</main>
+
+<aside class="tareas">
+  <h2>Tareas</h2>
+  <div class="filtros" id="filtros"></div>
+  <div id="lista"></div>
+  <p class="nota">Boceto: los datos son de ejemplo.</p>
+</aside>
+
+<script>
+const HOY = new Date(2026, 10, 19);
+const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const k = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const D = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const mas = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const corto = d => `${DIAS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+
+const E = [
+  { t: 'evento', f: '2026-11-19', h: '10:00', x: 'Dentista' },
+  { t: 'evento', f: '2026-11-21', h: '21:00', x: 'Cena con amigos' },
+  { t: 'evento', f: '2026-11-24', h: '09:00', x: 'Reunión de equipo' },
+  { t: 'evento', f: '2026-11-26', h: '09:00', x: 'Reunión con cliente' },
+  { t: 'evento', f: '2026-11-26', h: '13:00', x: 'Almuerzo con Juan' },
+  { t: 'evento', f: '2026-11-26', h: '17:30', x: 'Clase de inglés' },
+  { t: 'evento', f: '2026-12-03', h: '11:00', x: 'Turno médico' },
+  { t: 'cumple', f: '2026-11-12', x: 'Cumple Lucía' },
+  { t: 'cumple', f: '2026-11-22', x: 'Cumple Ana (30)' },
+  { t: 'cumple', f: '2026-11-29', x: 'Cumple papá (61)' },
+  { t: 'tarea', f: '2026-11-20', x: 'Pagar alquiler', imp: true },
+  { t: 'tarea', f: '2026-11-25', x: 'Entregar informe', imp: true },
+  { t: 'tarea', f: '2026-11-19', x: 'Comprar pilas' },
+  { t: 'tarea', f: '2026-11-19', x: 'Responder mails', hechaEn: '2026-11-19 09:40' },
+  { t: 'tarea', f: '2026-11-23', x: 'Llamar al banco' },
+  { t: 'tarea', f: '2026-11-26', x: 'Sacar turno vacuna' },
+  { t: 'tarea', f: '2026-11-17', x: 'Renovar DNI' },
+  { t: 'tarea', rep: 'Diaria', horas: ['08:00', '14:00', '22:00'], x: 'Tomar remedio' },
+  { t: 'tarea', rep: 'Semanal · Dom', dias: [0], horas: ['10:00'], x: 'Regar plantas' },
+  { t: 'tarea', x: 'Ideas de regalo para Ana', imp: true },
+  { t: 'tarea', x: 'Ordenar escritorio' },
+  { t: 'tarea', x: 'Terminar libro' },
+];
+// Evento semanal (lun y mié)
+for (let d = new Date(2026, 9, 26); d <= new Date(2026, 11, 6); d = mas(d, 1))
+  if ([1, 3].includes(d.getDay())) E.push({ t: 'evento', f: k(d), h: '19:00', x: 'Gimnasio', rep: 'Semanal · Lun, Mié' });
+let sigId = 0;
+E.forEach(e => e.id = ++sigId);
+const porId = id => E.find(e => e.id === +id);
+
+const tipo = e => e.t === 'tarea' ? (e.imp ? 'imp' : 'tarea') : e.t;
+const ocurre = (e, key) => e.rep === 'Diaria' || !!e.dias?.includes(D(key).getDay());
+const delDia = key => E.filter(e => e.f === key && !e.hechaEn).sort((a, b) => (a.h || '99').localeCompare(b.h || '99'));
+const itemHTML = e => `<div class="item"><span class="p ${tipo(e)}"></span>${e.h ? `<span class="h">${e.h}</span>` : ''}<span>${e.x}</span></div>`;
+const alarmaDe = e => {
+  if (e.t === 'evento') return e.h ? hhmm((+e.h.slice(0, 2) + 23) % 24, e.h.slice(3)) : '09:00';
+  if (e.t === 'cumple') return 'día antes 20:00 · 09:00';
+  if (e.t === 'tarea') return e.horas?.join(' · ') || e.h;
+};
+const ahora = () => { const n = new Date(); return hhmm(n.getHours(), String(n.getMinutes()).padStart(2, '0')); };
+
+// Próximos 7 días
+const CLIMA = ['☀ 26° / 15°', '⛅ 24° / 14°', '🌧 19° / 13°', '⛅ 21° / 12°', '☀ 25° / 14°', '☀ 27° / 16°', '⛅ 23° / 15°'];
+const pintarSemana = () => document.getElementById('semana').innerHTML = CLIMA.map((c, i) => {
+  const d = mas(HOY, i);
+  const items = delDia(k(d)).filter(e => e.t !== 'tarea' || e.imp);
+  return `<div class="dia ${i === 0 ? 'hoy' : ''}" data-k="${k(d)}">
+    <div class="cab"><span class="nom">${i === 0 ? 'Hoy' : DIAS[d.getDay()]}</span><span class="h">${d.getDate()}</span></div>
+    <div class="clima">${c}</div>${items.map(itemHTML).join('')}</div>`;
+}).join('');
+
+// Grilla del mes
+const ORDEN = ['evento', 'cumple', 'imp', 'tarea'];
+const puntos = key => {
+  const es = delDia(key);
+  return ORDEN.map(t => {
+    const n = es.filter(e => tipo(e) === t).length;
+    if (!n) return '';
+    const fila = `<span class="p ${t}"></span>`.repeat(n > 2 ? 1 : n);
+    return `<div class="grupo"><div class="fila">${fila}</div>${n > 2 ? `<span class="num">${n}</span>` : ''}</div>`;
+  }).join('');
+};
+const grilla = document.getElementById('grilla');
+let primero = new Date(HOY.getFullYear(), HOY.getMonth(), 1);
+const pintarMes = () => {
+  const inicio = mas(primero, -((primero.getDay() + 6) % 7));
+  document.getElementById('titMes').textContent = `${MESES[primero.getMonth()]} ${primero.getFullYear()}`;
+  let html = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<div class="ds">${d}</div>`).join('');
+  for (let i = 0; i < 42; i++) {
+    const d = mas(inicio, i), key = k(d);
+    const cls = [d.getMonth() !== primero.getMonth() && 'fuera', key === k(HOY) && 'hoy'].filter(Boolean).join(' ');
+    html += `<div class="celda ${cls}" data-k="${key}"><span class="n">${d.getDate()}</span><div class="puntos">${puntos(key)}</div></div>`;
+  }
+  grilla.innerHTML = html;
+};
+const moverMes = n => { primero = new Date(primero.getFullYear(), primero.getMonth() + n, 1); cerrarDia(); pintarMes(); };
+document.getElementById('ant').onclick = () => moverMes(-1);
+document.getElementById('sig').onclick = () => moverMes(1);
+
+// Detalle del día
+const det = document.getElementById('detalle');
+const DIAS_LARGO = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+let diaAbierto = null, deshacer = null;
+const relativo = key => {
+  const n = Math.round((D(key) - HOY) / 864e5);
+  return n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : n === -1 ? 'Ayer' : n > 0 ? `En ${n} días` : `Hace ${-n} días`;
+};
+const plural = (n, s, p) => n ? `${n} ${n === 1 ? s : p}` : '';
+const fila = (e, key, { check = '', meta = [] } = {}) => {
+  const m = [e.rep && `🔁 ${e.rep}`, alarmaDe(e) && `🔔 ${alarmaDe(e)}`, ...meta].filter(Boolean).join(' · ');
+  return `<div class="fd ${check === 'checked' ? 'hecha' : ''}" data-id="${e.id}">
+    ${check !== null ? `<input type="checkbox" class="hacer" ${check} title="${check ? 'Desmarcar' : 'Completar'}">` : ''}
+    <span class="p ${tipo(e)}"></span>
+    <div class="txt">${e.h && e.t === 'evento' ? `<span class="h">${e.h}</span> ` : ''}${e.x}${e.imp ? ' <span class="star">★</span>' : ''}${m ? `<div class="meta">${m}</div>` : ''}</div>
+    <button class="borrar" title="Eliminar">×</button></div>`;
+};
+const pintarDetalle = () => {
+  if (!diaAbierto) return;
+  const key = diaAbierto, d = D(key), i = Math.round((d - HOY) / 864e5);
+  const esHoy = key === k(HOY);
+  const eventos = E.filter(e => e.f === key && e.t === 'evento').sort((a, b) => (a.h || '99').localeCompare(b.h || '99'));
+  const cumples = E.filter(e => e.f === key && e.t === 'cumple');
+  const pend = E.filter(e => e.t === 'tarea' && (
+    (e.f === key && !e.hechaEn) ||
+    (e.rep && d >= HOY && ocurre(e, key) && !e.hechas?.[key]) ||
+    (esHoy && e.f && e.f < key && !e.hechaEn)
+  )).sort((a, b) => (b.imp ? 1 : 0) - (a.imp ? 1 : 0));
+  const hechas = E.filter(e => e.t === 'tarea' && ((e.hechaEn || '').startsWith(key) || e.hechas?.[key]));
+  const resumen = [plural(eventos.length, 'evento', 'eventos'), plural(cumples.length, 'cumpleaños', 'cumpleaños'),
+    plural(pend.length, 'tarea pendiente', 'tareas pendientes')].filter(Boolean).join(' · ') || 'Día libre';
+  const seccion = (titulo, items, f) => items.length ? `<h4>${titulo}</h4>${items.map(f).join('')}` : '';
+
+  det.innerHTML = `
+    <div class="cab"><div><h3>${DIAS_LARGO[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}</h3>
+      <div class="sub">${relativo(key)}${i >= 0 && i < 7 ? ` · ${CLIMA[i]}` : ''} · ${resumen}</div></div>
+      <button class="x" title="Cerrar (Esc)">×</button></div>
+    <div class="cols">
+      <div>${seccion('Cumpleaños', cumples, e => fila(e, key, { check: null }))}
+           ${seccion('Eventos', eventos, e => fila(e, key, { check: null }))}
+           ${!eventos.length && !cumples.length ? '<h4>Eventos</h4><p class="vacio">Sin eventos.</p>' : ''}</div>
+      <div>${seccion('Tareas', pend, e => fila(e, key, { meta: [e.f && e.f < key && `<span class="venc">Vencida · ${corto(D(e.f))}</span>`] }))}
+           ${!pend.length ? '<h4>Tareas</h4><p class="vacio">Nada pendiente.</p>' : ''}
+           ${seccion('Hechas', hechas, e => fila(e, key, { check: 'checked', meta: [`✓ ${e.rep ? e.hechas[key] : e.hechaEn.slice(11)}`] }))}</div>
+    </div>
+    <div class="captura"><input id="capDia" placeholder="Agregar al ${d.getDate()}/${d.getMonth() + 1}… (ej.: turno 15hs)"></div>
+    <div class="aviso" id="aviso"></div>`;
+};
+const abrirDia = key => { diaAbierto = key; det.classList.add('on'); pintarDetalle(); };
+const cerrarDia = () => { diaAbierto = null; det.classList.remove('on'); };
+const todo = () => { E.forEach(e => e.id ??= ++sigId); pintarSemana(); pintarMes(); pintar(); pintarDetalle(); };
+const avisar = msg => {
+  const a = document.getElementById('aviso'); if (!a) return;
+  a.innerHTML = `${msg} <button class="undo">Deshacer</button>`;
+  clearTimeout(avisar.t); avisar.t = setTimeout(() => { a.innerHTML = ''; deshacer = null; }, 6000);
+};
+const completar = (e, key, si) => {
+  if (e.rep) { e.hechas = { ...e.hechas }; if (si) e.hechas[key] = ahora(); else delete e.hechas[key]; }
+  else e.hechaEn = si ? `${k(HOY)} ${ahora()}` : undefined;
+};
+
+grilla.addEventListener('click', ev => { const c = ev.target.closest('.celda'); if (c) abrirDia(c.dataset.k); });
+document.getElementById('semana').addEventListener('click', ev => { const c = ev.target.closest('.dia'); if (c) abrirDia(c.dataset.k); });
+det.addEventListener('click', ev => {
+  if (ev.target.matches('.x')) return cerrarDia();
+  if (ev.target.matches('.undo') && deshacer) { deshacer(); deshacer = null; return todo(); }
+  if (ev.target.matches('.borrar')) {
+    const i = E.findIndex(e => e.id === +ev.target.closest('.fd').dataset.id), [e] = E.splice(i, 1);
+    deshacer = () => E.splice(i, 0, e);
+    todo(); avisar(`Eliminado: ${e.x}.`);
+  }
+});
+det.addEventListener('change', ev => {
+  if (!ev.target.matches('.hacer')) return;
+  const e = porId(ev.target.closest('.fd').dataset.id), key = diaAbierto, si = ev.target.checked;
+  const antes = { hechaEn: e.hechaEn, hechas: e.hechas };
+  completar(e, key, si);
+  deshacer = () => Object.assign(e, antes);
+  todo(); avisar(si ? `Hecha: ${e.x}.` : `Vuelve a pendiente: ${e.x}.`);
+});
+det.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !ev.target.matches('#capDia') || !ev.target.value.trim()) return;
+  const r = interpretar(ev.target.value, D(diaAbierto));
+  if (!r.f && !r.rep && r.t !== 'nota') r.f = diaAbierto;
+  guardar(r);
+  document.getElementById('capDia').focus();
+});
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cerrarDia(); });
+
+// Barra derecha
+const FILTROS = {
+  'Todas': () => true,
+  'Importantes': e => e.imp,
+  'Con fecha': e => e.f,
+  'Repetitivas': e => e.rep,
+  'Sin fecha': e => !e.f && !e.rep,
+  'Vencidas': e => e.f && D(e.f) < HOY,
+};
+let filtro = 'Todas';
+const tareas = () => E.filter(e => e.t === 'tarea' && !e.hechaEn)
+  .sort((a, b) => (b.imp ? 1 : 0) - (a.imp ? 1 : 0) || (a.f || (a.rep ? '0' : '9')).localeCompare(b.f || (b.rep ? '0' : '9')));
+const meta = e => {
+  if (e.rep) return `<div class="meta">${e.rep}${e.horas.length ? ` · 🔔 ${e.horas.join(' · ')}` : ''}${e.hechas?.[k(HOY)] ? ' · ✓ hoy' : ''}</div>`;
+  if (!e.f) return '';
+  const d = D(e.f);
+  return d < HOY ? `<div class="meta venc">Vencida · ${corto(d)}</div>` : `<div class="meta">${k(d) === k(HOY) ? 'Hoy' : corto(d)}</div>`;
+};
+const pintar = () => {
+  document.getElementById('filtros').innerHTML = Object.keys(FILTROS)
+    .map(f => `<button class="chip ${f === filtro ? 'on' : ''}">${f}</button>`).join('');
+  document.getElementById('lista').innerHTML = tareas().filter(FILTROS[filtro]).map(e => {
+    const hoyHecha = e.rep && e.hechas?.[k(HOY)];
+    return `<label class="ft ${hoyHecha ? 'hecha' : ''}" data-id="${e.id}"><input type="checkbox" ${hoyHecha ? 'checked' : ''}><div class="txt">${e.x} ${e.imp ? '<span class="star">★</span>' : ''}${meta(e)}</div></label>`;
+  }).join('');
+};
+document.getElementById('filtros').addEventListener('click', ev => {
+  if (ev.target.matches('.chip')) { filtro = ev.target.textContent; pintar(); }
+});
+document.getElementById('lista').addEventListener('change', ev => {
+  const l = ev.target.closest('.ft');
+  l.classList.toggle('hecha', ev.target.checked);
+  completar(porId(l.dataset.id), k(HOY), ev.target.checked);
+  setTimeout(todo, 400); // deja ver el tachado antes de que la tarea pase a Hechas
+});
+pintarSemana(); pintarMes(); pintar();
+
+// ---------- Captura automática ----------
+const DIA_RE = 'lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bados?|domingos?';
+const DOW = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+const dk = s => { s = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); return DOW[s] ?? DOW[s.slice(0, -1)]; };
+const hhmm = (h, m = '00') => `${String(h).padStart(2, '0')}:${m}`;
+
+function interpretar(txt, hoy = HOY) {
+  let s = ` ${txt} `;
+  const r = { t: null, f: null, h: null, rep: null, dias: null, imp: false, edad: null };
+  const quitar = (re, fn) => { const m = s.match(re); if (m) { s = s.replace(re, ' '); fn(m); } return !!m; };
+  const cumple = /\bcumple(a[nñ]os)?\b/iu.test(txt);
+  const nota = quitar(/^\s*nota:\s*/iu, () => {});
+
+  quitar(/\s!+\s*$|\bimportante\b/iu, () => r.imp = true);
+
+  // Repetición
+  quitar(new RegExp(`\\b(?:todos los|cada)\\s+((?:${DIA_RE})(?:(?:\\s*,\\s*|\\s+y\\s+)(?:${DIA_RE}))*)`, 'iu'), m => {
+    r.dias = m[1].split(/\s*,\s*|\s+y\s+/).map(dk).sort((a, b) => (a + 6) % 7 - (b + 6) % 7);
+    r.rep = 'Semanal · ' + r.dias.map(d => DIAS[d]).join(', ');
+  }) ||
+  quitar(/\b(?:todos los d[ií]as|cada d[ií]a|diariamente|diari[oa])\b/iu, () => r.rep = 'Diaria') ||
+  quitar(/\b(?:todos los meses|cada mes|mensualmente|mensual)\b/iu, () => r.rep = 'Mensual');
+
+  // Hora
+  quitar(/\b(?:a las\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:hs|h|horas)\b/iu, m => r.h = hhmm(m[1], m[2])) ||
+  quitar(/\ba las\s+(\d{1,2})(?::(\d{2}))?\b/iu, m => r.h = hhmm(m[1], m[2])) ||
+  quitar(/\b(\d{1,2}):(\d{2})\b/, m => r.h = hhmm(m[1], m[2]));
+  if (r.h && (+r.h.slice(0, 2) > 23 || +r.h.slice(3) > 59)) r.h = null;
+
+  // Fecha
+  const fechaDM = (d, mes, y) => {
+    let anio = hoy.getFullYear();
+    if (y && !cumple) anio = y.length === 2 ? 2000 + +y : +y;
+    const crear = a => {
+      const f = new Date(a, mes, d);
+      if (f.getDate() === d) return f;
+      // 29/2 en año no bisiesto: el cumpleaños se avisa el 28
+      return cumple && d === 29 && mes === 1 ? new Date(a, 1, 28) : null;
+    };
+    let f = crear(anio);
+    if (f && f < hoy && !(y && !cumple)) f = crear(anio + 1);
+    if (!f) return;
+    r.f = f;
+    if (cumple && y) r.edad = f.getFullYear() - (y.length === 2 ? 1900 + +y : +y);
+  };
+  quitar(/\bpasado ma[nñ]ana\b/iu, () => r.f = mas(hoy, 2)) ||
+  quitar(/\bma[nñ]ana\b/iu, () => r.f = mas(hoy, 1)) ||
+  quitar(/\bhoy\b/iu, () => r.f = hoy) ||
+  quitar(new RegExp(`\\b(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${MESES.join('|')})(?:\\s+(?:de\\s+)?(\\d{4}))?\\b`, 'iu'),
+    m => fechaDM(+m[1], MESES.indexOf(m[2].toLowerCase()), m[3])) ||
+  quitar(/\b(?:el\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?\b/u, m => fechaDM(+m[1], +m[2] - 1, m[3])) ||
+  quitar(new RegExp(`\\b(?:el\\s+|este\\s+)?(${DIA_RE})\\b`, 'iu'), m => r.f = mas(hoy, (dk(m[1]) - hoy.getDay() + 7) % 7 || 7));
+
+  // Texto limpio
+  r.x = s.replace(/\s+/g, ' ').trim().replace(/[\s,]*\b(?:el|a las|de|para|con|y)$/iu, '').trim();
+  r.x = r.x.charAt(0).toUpperCase() + r.x.slice(1);
+
+  // Tipo
+  const verbo = /^[a-záéíóúñ]{2,}(?:ar|er|ir)(?:lo|la|le|los|las|les|me|te|se)?$/iu.test(r.x.split(' ')[0]);
+  if (nota) r.t = 'nota';
+  else if (cumple) r.t = 'cumple';
+  else if (!verbo && (r.h || r.rep)) r.t = 'evento';
+  else if (!r.f && !r.h && !r.rep && r.x.length > 60) r.t = 'nota';
+  else r.t = 'tarea';
+
+  if (r.h && !r.f && !r.rep) r.f = hoy;
+  r.f = r.f && k(r.f);
+  return r;
+}
+
+// Autoprueba: los errores aparecen en la consola del navegador (F12)
+[
+  ['Reunión con Juan viernes 10hs', { t: 'evento', f: '2026-11-20', h: '10:00', x: 'Reunión con Juan' }],
+  ['llamar al banco mañana a las 10', { t: 'tarea', f: '2026-11-20', h: '10:00', x: 'Llamar al banco' }],
+  ['cumple de Ana 14/3', { t: 'cumple', f: '2027-03-14', x: 'Cumple de Ana' }],
+  ['cumple de Ana 14/3/1996', { t: 'cumple', f: '2027-03-14', edad: 31 }],
+  ['cumple de Leo 29/2', { t: 'cumple', f: '2027-02-28' }],
+  ['pagar alquiler el viernes !', { t: 'tarea', f: '2026-11-20', imp: true, x: 'Pagar alquiler' }],
+  ['gimnasio todos los lunes y miércoles 19hs', { t: 'evento', rep: 'Semanal · Lun, Mié', h: '19:00', f: null, x: 'Gimnasio' }],
+  ['regar plantas cada domingo', { t: 'tarea', rep: 'Semanal · Dom', x: 'Regar plantas' }],
+  ['tomar remedio todos los días 08:00', { t: 'tarea', rep: 'Diaria', h: '08:00' }],
+  ['nota: ideas para el viaje', { t: 'nota', x: 'Ideas para el viaje' }],
+  ['comprar pilas', { t: 'tarea', f: null, h: null, x: 'Comprar pilas' }],
+  ['turno médico 14 de diciembre', { t: 'tarea', f: '2026-12-14', x: 'Turno médico' }],
+  ['dentista jueves 10hs', { t: 'evento', f: '2026-11-26' }],
+  ['entregar informe 3/11', { f: '2027-11-03' }],
+].forEach(([txt, esp]) => {
+  const r = interpretar(txt);
+  for (const c in esp) console.assert(JSON.stringify(r[c]) === JSON.stringify(esp[c]), `"${txt}" → ${c}: ${JSON.stringify(r[c])}, esperado ${JSON.stringify(esp[c])}`);
+});
+
+const cap = document.getElementById('cap'), interpEl = document.getElementById('interp'), tiposEl = document.getElementById('tipos');
+let manual = null;
+const actual = () => { const r = interpretar(cap.value); if (manual) r.t = manual; return r; };
+const alarma = alarmaDe;
+const mostrar = () => {
+  const r = actual(), vacio = !cap.value.trim();
+  tiposEl.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', !vacio && b.dataset.t === r.t));
+  interpEl.innerHTML = vacio ? '' : [
+    r.f && `📅 ${corto(D(r.f))}`, r.h && `🕒 ${r.h}`, r.rep && `🔁 ${r.rep}`, r.imp && '★ Importante',
+    r.edad && `🎂 cumple ${r.edad}`, alarma(r) && `🔔 ${alarma(r)}`,
+  ].filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('');
+};
+const guardar = r => {
+  if (r.t === 'nota') return;
+  const base = { t: r.t, imp: r.imp, x: r.edad ? `${r.x} (${r.edad})` : r.x };
+  if (r.t === 'tarea') E.push({ ...base, f: r.rep ? undefined : r.f, h: r.h, rep: r.rep, dias: r.dias, horas: r.rep ? (r.h ? [r.h] : []) : undefined });
+  else if (r.t === 'evento' && r.rep) {
+    const ini = r.f ? D(r.f) : HOY;
+    for (let i = 0; i < 120; i++) {
+      const d = mas(ini, i);
+      if (r.rep === 'Diaria' || r.dias?.includes(d.getDay()) || (r.rep === 'Mensual' && d.getDate() === ini.getDate()))
+        E.push({ ...base, f: k(d), h: r.h, rep: r.rep });
+    }
+  } else E.push({ ...base, f: r.f || k(HOY), h: r.h });
+  todo();
+};
+cap.addEventListener('input', mostrar);
+// En la app real este botón abre el dictado de Windows; el navegador no puede hacerlo
+document.getElementById('mic').onclick = () => { cap.focus(); interpEl.innerHTML = '<span class="tag">🎤 En la app se abre el dictado de Windows (Win + H)</span>'; };
+tiposEl.addEventListener('click', ev => { if (ev.target.dataset.t) { manual = ev.target.dataset.t; mostrar(); cap.focus(); } });
+cap.addEventListener('keydown', ev => {
+  if (ev.key !== 'Enter' || !cap.value.trim()) return;
+  const r = actual();
+  guardar(r);
+  cap.value = ''; manual = null; mostrar();
+  interpEl.innerHTML = `<span class="ok">✓ Guardado${r.t === 'nota' ? ' en Notas' : ''}</span>`;
+  setTimeout(() => { if (!cap.value) interpEl.innerHTML = ''; }, 2000);
+});
+</script>
+</body>
+</html>
