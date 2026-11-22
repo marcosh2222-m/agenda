@@ -36,10 +36,10 @@ Entradas guardadas en `%APPDATA%\Agenda\entradas.json`. La frase se interpreta s
 - Resumen del día al abrir la app (arranca con Windows), una vez por día.
 - Copia automática diaria a una carpeta elegida en Ajustes (últimas 30).
 
-## 6. Clima ← ahora
-Open-Meteo, ciudad en Ajustes, último clima guardado si no hay internet.
+## ✅ 6. Clima
+Open-Meteo, ciudad elegida en Ajustes, ícono y máx / mín en los 7 días y en el detalle del día. Se actualiza al abrir y cada 3 h; sin internet queda el último guardado.
 
-## 7. Pulido y versión instalable
+## 7. Pulido y versión instalable ← ahora
 Uso real unas semanas, arreglar lo que moleste, instalador para Windows.
 
 ## Después

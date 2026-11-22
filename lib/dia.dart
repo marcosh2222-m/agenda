@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'alarmas.dart';
 import 'calendario.dart';
 import 'captura.dart';
+import 'clima.dart';
 import 'datos.dart';
 import 'estilo.dart';
 
@@ -103,7 +104,14 @@ class _DetalleDiaState extends State<DetalleDia> {
                           '${nombresDia[d.weekday - 1]} ${d.day} de ${nombresMes[d.month - 1].toLowerCase()}',
                           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                         ),
-                        Text([relativo(d, hoy), resumen.isEmpty ? 'Día libre' : resumen].join(' · '), style: TextStyle(fontSize: 12.5, color: p.muted)),
+                        Text(
+                          [
+                            relativo(d, hoy),
+                            if (clima.value[diaClave(d)] case final c?) '${aspecto(c[0].toInt()).$2} ${temperaturas(c)}',
+                            resumen.isEmpty ? 'Día libre' : resumen,
+                          ].join(' · '),
+                          style: TextStyle(fontSize: 12.5, color: p.muted),
+                        ),
                       ],
                     ),
                   ),

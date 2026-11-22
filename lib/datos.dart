@@ -101,6 +101,11 @@ final alarmasDefecto = ValueNotifier<Map<String, List<String>>>(Map.of(alarmasDe
 
 /// Carpeta para la copia diaria (puede ser de OneDrive); null = sin copias.
 final carpetaCopias = ValueNotifier<String?>(null);
+
+/// Ciudad del clima ({nombre, lat, lon}) y último pronóstico por día ("2026-11-22" → [código, máx, mín]).
+final ciudad = ValueNotifier<Map<String, dynamic>?>(null);
+final clima = ValueNotifier<Map<String, List<num>>>({});
+String? climaActualizado;
 String? ultimaCopia, ultimoResumen; // días ("2026-11-22") de la última copia y del último resumen
 
 File archivoDatos = File('${Platform.environment['APPDATA']}\\Agenda\\entradas.json');
@@ -117,6 +122,9 @@ Future<void> cargar() async {
     if (j['atajo'] case Map m) atajoGuardado.value = m.cast<String, dynamic>();
     if (j['alarmas'] case Map m) alarmasDefecto.value = {...alarmasDeFabrica, for (final k in m.keys) k as String: (m[k] as List).cast<String>()};
     carpetaCopias.value = j['carpetaCopias'];
+    if (j['ciudad'] case Map m) ciudad.value = m.cast<String, dynamic>();
+    if (j['clima'] case Map m) clima.value = {for (final k in m.keys) k as String: (m[k] as List).cast<num>()};
+    climaActualizado = j['climaActualizado'];
     ultimaCopia = j['ultimaCopia'];
     ultimoResumen = j['ultimoResumen'];
     version = j['version'] ?? 1;
@@ -143,6 +151,9 @@ Future<void> guardar() async {
       'alarmas': alarmasDefecto.value,
       'atajo': atajoGuardado.value,
       'carpetaCopias': carpetaCopias.value,
+      'ciudad': ciudad.value,
+      'clima': clima.value,
+      'climaActualizado': climaActualizado,
       'ultimaCopia': ultimaCopia,
       'ultimoResumen': ultimoResumen,
       'entradas': entradas.value,

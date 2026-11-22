@@ -7,9 +7,10 @@ import 'calendario.dart';
 import 'datos.dart';
 
 class Paleta {
-  final Color bg, line, text, muted, panel, hover, accent, dia;
-  const Paleta(this.bg, this.line, this.text, this.muted, this.panel, this.hover, this.accent, this.dia);
-  // Un solo fondo; panel tiñe apenas la captura, dia es el beige de los 7 días. muted pasa 4.5:1 sobre bg y sobre dia.
+  final Color bg, line, text, muted, panel, hover, accent, dia, lateral;
+  const Paleta(this.bg, this.line, this.text, this.muted, this.panel, this.hover, this.accent, this.dia, this.lateral);
+  // panel tiñe apenas la captura, dia es el beige de los 7 días, lateral el tono de las barras.
+  // muted pasa 4.5:1 sobre bg, dia y lateral.
   static const claro = Paleta(
     Color(0xFFFAF7F2),
     Color(0xFFECE6DC),
@@ -19,6 +20,7 @@ class Paleta {
     Color(0xFFF4EFE7),
     Color(0xFFB0643A),
     Color(0xFFEEE6D8),
+    Color(0xFFF2ECE2),
   );
   static const oscuro = Paleta(
     Color(0xFF1B1916),
@@ -29,6 +31,7 @@ class Paleta {
     Color(0xFF262320),
     Color(0xFFE09668),
     Color(0xFF292520),
+    Color(0xFF151311),
   );
   static Paleta of(BuildContext c) => Theme.of(c).brightness == Brightness.dark ? oscuro : claro;
 }

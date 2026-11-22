@@ -78,7 +78,12 @@ void cajita() {
     archivoDatos = File('${Directory.systemTemp.createTempSync('agenda').path}/entradas.json');
     entradas.value = [];
     var cerrada = false;
-    await t.pumpWidget(MaterialApp(theme: tema(Brightness.light), home: Cajita(cerrar: () => cerrada = true)));
+    await t.pumpWidget(
+      MaterialApp(
+        theme: tema(Brightness.light),
+        home: Cajita(cerrar: () => cerrada = true),
+      ),
+    );
     await t.pump();
     // Nota: se guarda tal cual, sin buscar fechas ni horas.
     await t.enterText(find.byType(TextField), 'ideas para el viaje el martes 10hs');
@@ -88,12 +93,10 @@ void cajita() {
       await t.runAsync(() => Future.delayed(const Duration(milliseconds: 30)));
       await t.pump();
     }
-    expect([entradas.value.single.tipo, entradas.value.single.texto, entradas.value.single.fecha, cerrada], [
-      Tipo.nota,
-      'Ideas para el viaje el martes 10hs',
-      null,
-      true,
-    ]);
+    expect(
+      [entradas.value.single.tipo, entradas.value.single.texto, entradas.value.single.fecha, cerrada],
+      [Tipo.nota, 'Ideas para el viaje el martes 10hs', null, true],
+    );
     // Tab: eventos y tareas, con la interpretación de siempre.
     await t.tap(find.byType(TextField));
     await t.sendKeyEvent(LogicalKeyboardKey.tab);

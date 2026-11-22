@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'alarmas.dart';
 import 'calendario.dart';
 import 'captura.dart';
+import 'clima.dart';
 import 'datos.dart';
 import 'dia.dart';
 import 'estilo.dart';
@@ -88,7 +89,7 @@ class _PantallaState extends State<Pantalla> {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _nav(p),
+              ColoredBox(color: p.lateral, child: _nav(p)),
               VerticalDivider(width: 1, thickness: 1, color: p.line),
               Expanded(
                 child: switch (seccion) {
@@ -99,7 +100,10 @@ class _PantallaState extends State<Pantalla> {
                 },
               ),
               VerticalDivider(width: 1, thickness: 1, color: p.line),
-              _Tareas(todas: todas, hoy: hoy),
+              ColoredBox(
+                color: p.lateral,
+                child: _Tareas(todas: todas, hoy: hoy),
+              ),
             ],
           );
         },
@@ -115,7 +119,7 @@ class _PantallaState extends State<Pantalla> {
         onTap: () => setState(() => seccion = s),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: on ? BoxDecoration(color: p.panel, borderRadius: BorderRadius.circular(6)) : null,
+          decoration: on ? BoxDecoration(color: p.dia, borderRadius: BorderRadius.circular(6)) : null,
           child: Text(
             t,
             style: TextStyle(color: on ? p.text : p.muted, fontWeight: on ? FontWeight.w600 : null),
@@ -247,12 +251,43 @@ class _InicioState extends State<_Inicio> {
 
   Widget _dia(Paleta p, DateTime d, bool esHoy) => _clic(d, _diaCuerpo(p, d, esHoy));
 
+  /// Ícono y "26° / 15°"; nada si no hay ciudad o no hay pronóstico para ese día.
+  Widget _climaDia(Paleta p, DateTime d) => ValueListenableBuilder(
+    valueListenable: clima,
+    builder: (context, porDia, _) {
+      final c = porDia[diaClave(d)];
+      if (c == null) return const SizedBox.shrink();
+      final (icono, palabra) = aspecto(c[0].toInt());
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Tooltip(
+          message: palabra,
+          child: Row(
+            spacing: 5,
+            children: [
+              Icon(icono, size: 14, color: p.muted),
+              Flexible(
+                child: Text(
+                  temperaturas(c),
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
+                  style: TextStyle(fontSize: 12, color: p.muted, fontFeatures: tabular),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
   Widget _clic(DateTime d, Widget w) => InkWell(borderRadius: BorderRadius.circular(8), onTap: () => abrir(d), child: w);
 
   Widget _diaCuerpo(Paleta p, DateTime d, bool esHoy) {
     final items = delDia(widget.todas, d).where((e) => categoria(e) != Categoria.tarea);
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
       decoration: BoxDecoration(
         color: p.dia,
         borderRadius: BorderRadius.circular(8),
@@ -276,6 +311,7 @@ class _InicioState extends State<_Inicio> {
               ),
             ],
           ),
+          _climaDia(p, d),
           const SizedBox(height: 10),
           for (final e in items)
             Padding(
@@ -283,7 +319,7 @@ class _InicioState extends State<_Inicio> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(padding: const EdgeInsets.only(top: 6, right: 7), child: punto(colorCat[categoria(e)]!, 5)),
+                  Padding(padding: const EdgeInsets.only(top: 6, right: 5), child: punto(colorCat[categoria(e)]!, 5)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

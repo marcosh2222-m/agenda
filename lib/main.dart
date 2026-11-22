@@ -11,6 +11,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'alarmas.dart';
 import 'calendario.dart';
+import 'clima.dart';
 import 'estilo.dart';
 import 'pantalla.dart';
 import 'datos.dart';
@@ -185,6 +186,8 @@ Future<void> diario({required bool alAbrir}) async {
   final error = await copiaDiaria(ahora);
   if (error != estadoCopia.value && error != null) log(error); // un solo registro por error, no cada 30 s
   estadoCopia.value = error;
+  final errorClima = await actualizarClima(); // cada 3 h; sin internet queda el último guardado
+  if (errorClima != null) log(errorClima);
 }
 
 /// Selector de carpeta de Windows vía PowerShell: sin paquetes extra. Null si se cancela.
@@ -393,6 +396,28 @@ class _AjustesState extends State<Ajustes> {
             valueListenable: atajoActual,
             builder: (context, atajo, _) =>
                 OutlinedButton(onPressed: grabando ? _dejarDeGrabar : _grabarAtajo, child: Text(grabando ? 'Esperando…' : nombreAtajo(atajo))),
+          ),
+        ),
+      ),
+      ValueListenableBuilder(
+        valueListenable: ciudad,
+        builder: (context, c, _) => ListTile(
+          title: const Text('Ciudad para el clima'),
+          subtitle: Text(
+            c == null ? 'Sin ciudad: los 7 días no muestran el clima' : '${c['nombre']} · ${c['detalle']}',
+            style: TextStyle(fontSize: 12.5, color: Paleta.of(context).muted),
+          ),
+          trailing: OutlinedButton(
+            onPressed: () async {
+              final elegida = await elegirCiudad(context);
+              if (elegida == null) return;
+              ciudad.value = {'nombre': elegida.nombre, 'detalle': elegida.detalle, 'lat': elegida.lat, 'lon': elegida.lon};
+              clima.value = {}; // el pronóstico de la ciudad anterior ya no sirve
+              await guardar();
+              final error = await actualizarClima(forzar: true);
+              if (error != null) log(error);
+            },
+            child: Text(c == null ? 'Elegir' : 'Cambiar'),
           ),
         ),
       ),
