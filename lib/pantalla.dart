@@ -1,4 +1,6 @@
 // Pantalla principal de PC (ver docs/boceto-pc.html).
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -92,17 +94,17 @@ class _PantallaState extends State<Pantalla> {
               ColoredBox(color: p.lateral, child: _nav(p)),
               VerticalDivider(width: 1, thickness: 1, color: p.line),
               Expanded(
-                child: switch (seccion) {
+                child: fundido(context, seccion, switch (seccion) {
                   Seccion.inicio => _Inicio(key: inicio, todas: todas, hoy: hoy),
-                  Seccion.notas => _Notas(todas: todas, hoy: hoy),
-                  Seccion.hechas => _Hechas(todas: todas, hoy: hoy),
+                  Seccion.notas => PaginaNotas(todas: todas, hoy: hoy),
+                  Seccion.hechas => PaginaHechas(todas: todas, hoy: hoy),
                   Seccion.ajustes => Padding(padding: const EdgeInsets.all(32), child: widget.ajustes),
-                },
+                }),
               ),
               VerticalDivider(width: 1, thickness: 1, color: p.line),
               ColoredBox(
                 color: p.lateral,
-                child: _Tareas(todas: todas, hoy: hoy),
+                child: ListaTareas(todas: todas, hoy: hoy),
               ),
             ],
           );
@@ -197,10 +199,34 @@ class _InicioState extends State<_Inicio> {
     return true;
   }
 
+  var _sentido = 1; // hacia dónde se movió el mes: el nuevo entra desde ese lado
+
   void moverMes(int n) => setState(() {
     abierto = null;
+    _sentido = n.sign;
     mes = DateTime(mes.year, mes.month + n);
   });
+
+  /// Cambio de mes: el nuevo entra corrido 3 % desde el lado hacia el que se avanza; el anterior solo se desvanece.
+  Widget _mesAnimado(BuildContext context) => AnimatedSwitcher(
+    duration: mov(context, 240),
+    reverseDuration: mov(context, 120),
+    switchInCurve: llegada,
+    layoutBuilder: (actual, anteriores) => Stack(fit: StackFit.expand, children: [...anteriores, ?actual]),
+    transitionBuilder: (hijo, a) {
+      final entra = hijo.key == ValueKey(mes);
+      return FadeTransition(
+        opacity: a,
+        child: entra
+            ? SlideTransition(
+                position: Tween(begin: Offset(.03 * _sentido, 0), end: Offset.zero).animate(a),
+                child: hijo,
+              )
+            : hijo,
+      );
+    },
+    child: KeyedSubtree(key: ValueKey(mes), child: _mes(context)),
+  );
 
   @override
   // Todo entra en la ventana: los 7 días toman 2/5 del alto y el mes el resto; lo que no cabe en un día se desplaza dentro de él.
@@ -222,13 +248,30 @@ class _InicioState extends State<_Inicio> {
                   Expanded(flex: 2, child: _semana(context)),
                   const SizedBox(height: 24),
                   tituloSeccion(context, '${nombresMes[mes.month - 1]} ${mes.year}', extra: _flechas(Paleta.of(context))),
-                  Expanded(flex: 3, child: _mes(context)),
+                  Expanded(flex: 3, child: _mesAnimado(context)),
                 ],
               ),
-              if (abierto case final d?)
-                Positioned.fill(
-                  child: DetalleDia(key: ValueKey(d), dia: d, hoy: widget.hoy, todas: widget.todas, cerrar: cerrar),
+              // El detalle aparece desde un 98 % y se va más rápido de lo que llega.
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: abierto == null,
+                  child: AnimatedSwitcher(
+                    duration: mov(context, 220),
+                    reverseDuration: mov(context, 140),
+                    switchInCurve: llegada,
+                    switchOutCurve: Curves.easeIn,
+                    layoutBuilder: (actual, anteriores) => Stack(fit: StackFit.expand, children: [...anteriores, ?actual]),
+                    transitionBuilder: (hijo, a) => FadeTransition(
+                      opacity: a,
+                      child: ScaleTransition(scale: Tween(begin: .98, end: 1.0).animate(a), child: hijo),
+                    ),
+                    child: switch (abierto) {
+                      final d? => DetalleDia(key: ValueKey(d), dia: d, hoy: widget.hoy, todas: widget.todas, cerrar: cerrar),
+                      null => const SizedBox.expand(key: ValueKey('sin detalle')),
+                    },
+                  ),
                 ),
+              ),
             ],
           ),
         ),
@@ -314,26 +357,29 @@ class _InicioState extends State<_Inicio> {
           _climaDia(p, d),
           const SizedBox(height: 10),
           for (final e in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(padding: const EdgeInsets.only(top: 6, right: 5), child: punto(colorCat[categoria(e)]!, 5)),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (e.hora != null)
-                          Text(
-                            e.hora!,
-                            style: TextStyle(fontSize: 11.5, height: 1.35, color: p.muted, fontFeatures: tabular),
-                          ),
-                        Text(tituloCorto(e, d), style: const TextStyle(fontSize: 12.5, height: 1.35)),
-                      ],
+            Aterriza(
+              entrada: e,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(padding: const EdgeInsets.only(top: 6, right: 5), child: punto(colorCat[categoria(e)]!, 5)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (e.hora != null)
+                            Text(
+                              e.hora!,
+                              style: TextStyle(fontSize: 11.5, height: 1.35, color: p.muted, fontFeatures: tabular),
+                            ),
+                          Text(tituloCorto(e, d), style: const TextStyle(fontSize: 12.5, height: 1.35)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],
@@ -509,12 +555,14 @@ class _CajitaState extends State<Cajita> {
 class Captura extends StatefulWidget {
   final VoidCallback? alGuardar; // la cajita flotante se cierra al guardar
   final bool nota; // guarda el texto tal cual como nota, sin buscar fechas ni horas
-  const Captura({super.key, this.alGuardar, this.nota = false});
+  final FocusNode? foco; // null = el foco global `captura`
+  const Captura({super.key, this.alGuardar, this.nota = false, this.foco});
   @override
   State<Captura> createState() => _CapturaState();
 }
 
 class _CapturaState extends State<Captura> {
+  late final foco = widget.foco ?? captura; // la de Inicio usa la global (atajos N y global); otras, la suya
   final texto = TextEditingController();
   Tipo? forzado;
   String? aviso;
@@ -532,7 +580,7 @@ class _CapturaState extends State<Captura> {
       forzado = null;
       aviso = e.tipo == Tipo.nota ? 'Guardado en Notas' : 'Guardado';
     });
-    captura.requestFocus(); // Enter quita el foco; dejarlo para seguir escribiendo
+    foco.requestFocus(); // Enter quita el foco; dejarlo para seguir escribiendo
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => aviso = null);
     });
@@ -542,6 +590,10 @@ class _CapturaState extends State<Captura> {
   Widget build(BuildContext context) {
     final p = Paleta.of(context);
     final e = texto.text.trim().isEmpty || widget.nota ? null : interpretar(texto.text, DateTime.now(), tipo: forzado); // la nota no se interpreta
+    final angosta = MediaQuery.sizeOf(context).width < 600; // celular: las burbujas de tipo van en otra fila
+    final tipos = [
+      for (final t in [Tipo.tarea, Tipo.evento, Tipo.cumple, Tipo.nota]) _tipo(p, t, e?.tipo == t),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -550,28 +602,40 @@ class _CapturaState extends State<Captura> {
           decoration: BoxDecoration(color: p.panel, borderRadius: BorderRadius.circular(10)),
           child: Row(
             children: [
-              _microfono(p),
+              if (Platform.isWindows)
+                _microfono(p)
+              else
+                const SizedBox(width: 8), // shortcut: dictado solo en Windows (Whisper); en Android falta el reconocimiento de voz del sistema
               Expanded(
                 child: TextField(
-                  focusNode: captura,
+                  focusNode: foco,
                   autofocus: widget.alGuardar != null,
                   controller: texto,
                   style: const TextStyle(fontSize: 15),
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
-                    hintText: widget.nota ? 'Escribí una nota…' : 'Escribí algo: reunión con Juan viernes 10hs, cumple de Ana 14/3…',
+                    hintText: widget.nota
+                        ? 'Escribí una nota…'
+                        : (angosta ? 'Escribí algo…' : 'Escribí algo: reunión con Juan viernes 10hs, cumple de Ana 14/3…'),
                     hintStyle: TextStyle(color: p.muted),
                   ),
                   onChanged: (_) => setState(() => aviso = null),
                   onSubmitted: (_) => guardarFrase(),
                 ),
               ),
-              if (!widget.nota)
-                for (final t in [Tipo.tarea, Tipo.evento, Tipo.cumple, Tipo.nota]) _tipo(p, t, e?.tipo == t),
+              if (!widget.nota && !angosta) ...tipos,
             ],
           ),
         ),
+        if (angosta && !widget.nota && e != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: tipos),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 0, 0),
           child: SizedBox(
@@ -616,7 +680,7 @@ class _CapturaState extends State<Captura> {
           texto.text = [texto.text.trim(), dicho].where((s) => s.isNotEmpty).join(' ');
           texto.selection = TextSelection.collapsed(offset: texto.text.length);
           setState(() => aviso = null);
-          captura.requestFocus();
+          foco.requestFocus();
         },
       );
     },
@@ -630,7 +694,7 @@ class _CapturaState extends State<Captura> {
         borderRadius: BorderRadius.circular(99),
         onTap: () {
           setState(() => forzado = t);
-          captura.requestFocus();
+          foco.requestFocus();
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
@@ -656,15 +720,16 @@ class _CapturaState extends State<Captura> {
 
 // ---------- Barra derecha ----------
 
-class _Tareas extends StatefulWidget {
+class ListaTareas extends StatefulWidget {
   final List<Entrada> todas;
   final DateTime hoy;
-  const _Tareas({required this.todas, required this.hoy});
+  final double? ancho; // 300 en la PC (barra derecha); null = todo el ancho (celular)
+  const ListaTareas({super.key, required this.todas, required this.hoy, this.ancho = 300});
   @override
-  State<_Tareas> createState() => _TareasState();
+  State<ListaTareas> createState() => _ListaTareasState();
 }
 
-class _TareasState extends State<_Tareas> {
+class _ListaTareasState extends State<ListaTareas> {
   var filtro = 'Todas';
 
   @override
@@ -682,29 +747,33 @@ class _TareasState extends State<_Tareas> {
     final lista = pendientes(widget.todas).where(filtros[filtro]!).toList();
 
     return SizedBox(
-      width: 300,
+      width: widget.ancho,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 20, 0),
+        padding: celular(context) ? const EdgeInsets.fromLTRB(16, 16, 16, 0) : const EdgeInsets.fromLTRB(24, 24, 20, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             tituloSeccion(context, 'Tareas'),
-            Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              children: [
-                for (final f in filtros.keys)
-                  InkWell(
-                    onTap: () => setState(() => filtro = f),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: f == filtro ? p.text : Colors.transparent)),
+            // Celular: una sola fila que se desliza, para que ningún filtro quede solo en otro renglón.
+            _unaFila(
+              context,
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  for (final f in filtros.keys)
+                    InkWell(
+                      onTap: () => setState(() => filtro = f),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: f == filtro ? p.text : Colors.transparent)),
+                        ),
+                        child: Text(f, style: TextStyle(fontSize: 12.5, color: f == filtro ? p.text : p.muted)),
                       ),
-                      child: Text(f, style: TextStyle(fontSize: 12.5, color: f == filtro ? p.text : p.muted)),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             Expanded(
@@ -720,7 +789,7 @@ class _TareasState extends State<_Tareas> {
 
   Widget _fila(Paleta p, Entrada e) {
     final hoy = widget.hoy;
-    final hechaHoy = e.repeticion != null && hecha(e, hoy);
+    final hechaHoy = marcando.contains(e.id) || (e.repeticion != null && hecha(e, hoy)); // tildada un instante antes de irse
     final venc = vencida(e, hoy);
     final f = e.fecha;
     final meta = e.repeticion != null
@@ -735,47 +804,50 @@ class _TareasState extends State<_Tareas> {
         : [venc ? 'Vencida · ${fechaCorta(f, hoy)}' : (mismoDia(f, hoy) ? 'Hoy' : fechaCorta(f, hoy)), if (e.hora != null) e.hora!].join(' · ');
     void tocar() => marcar(context, e, hoy, !hechaHoy);
 
-    return ConBorrar(
+    return Aterriza(
       entrada: e,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: tocar,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: Checkbox(value: hechaHoy, onChanged: (_) => tocar()),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 1,
-                  children: [
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: e.texto,
-                            style: hechaHoy ? TextStyle(decoration: TextDecoration.lineThrough, color: p.muted) : null,
-                          ),
-                          if (e.importante)
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: Padding(padding: const EdgeInsets.only(left: 7), child: punto(colorCat[Categoria.imp]!)),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (meta != null) Text(meta, style: TextStyle(fontSize: 12, color: venc ? colorVencida : p.muted)),
-                  ],
+      child: ConBorrar(
+        entrada: e,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: tocar,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(value: hechaHoy, onChanged: (_) => tocar()),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 1,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: e.texto,
+                              style: hechaHoy ? TextStyle(decoration: TextDecoration.lineThrough, color: p.muted) : null,
+                            ),
+                            if (e.importante)
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.middle,
+                                child: Padding(padding: const EdgeInsets.only(left: 7), child: punto(colorCat[Categoria.imp]!)),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (meta != null) Text(meta, style: TextStyle(fontSize: 12, color: venc ? colorVencida : p.muted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -786,7 +858,7 @@ class _TareasState extends State<_Tareas> {
 // ---------- Notas y Hechas ----------
 
 Widget _pagina(BuildContext context, String t, List<Widget> filas, String vacio) => ListView(
-  padding: const EdgeInsets.fromLTRB(36, 24, 36, 24),
+  padding: celular(context) ? const EdgeInsets.fromLTRB(16, 16, 16, 12) : const EdgeInsets.fromLTRB(36, 24, 36, 24),
   children: [
     tituloSeccion(context, t),
     if (filas.isEmpty) Text(vacio, style: TextStyle(color: Paleta.of(context).muted)),
@@ -816,10 +888,10 @@ Widget _filaLista(Paleta p, {required Widget inicio, required Widget texto, requ
   ),
 );
 
-class _Notas extends StatelessWidget {
+class PaginaNotas extends StatelessWidget {
   final List<Entrada> todas;
   final DateTime hoy;
-  const _Notas({required this.todas, required this.hoy});
+  const PaginaNotas({super.key, required this.todas, required this.hoy});
 
   @override
   Widget build(BuildContext context) {
@@ -827,23 +899,26 @@ class _Notas extends StatelessWidget {
     final notas = todas.where((e) => e.tipo == Tipo.nota && !e.borrado).toList()..sort((a, b) => b.actualizado.compareTo(a.actualizado));
     return _pagina(context, 'Notas', [
       for (final e in notas)
-        ConBorrar(
+        Aterriza(
           entrada: e,
-          child: _filaLista(
-            p,
-            inicio: Padding(padding: const EdgeInsets.only(top: 7), child: punto(colorTipo[Tipo.nota]!)),
-            texto: TextoEditable(entrada: e, texto: e.texto),
-            fin: fechaCorta(e.fecha ?? e.actualizado, hoy),
+          child: ConBorrar(
+            entrada: e,
+            child: _filaLista(
+              p,
+              inicio: Padding(padding: const EdgeInsets.only(top: 7), child: punto(colorTipo[Tipo.nota]!)),
+              texto: TextoEditable(entrada: e, texto: e.texto),
+              fin: fechaCorta(e.fecha ?? e.actualizado, hoy),
+            ),
           ),
         ),
     ], 'Sin notas. Escribí "nota: …" en la captura.');
   }
 }
 
-class _Hechas extends StatelessWidget {
+class PaginaHechas extends StatelessWidget {
   final List<Entrada> todas;
   final DateTime hoy;
-  const _Hechas({required this.todas, required this.hoy});
+  const PaginaHechas({super.key, required this.todas, required this.hoy});
 
   @override
   Widget build(BuildContext context) {
@@ -872,3 +947,6 @@ class _Hechas extends StatelessWidget {
     ], 'Todavía no completaste ninguna tarea.');
   }
 }
+
+/// En el celular, una fila que se desliza; en la PC, tal cual (el Wrap baja de renglón).
+Widget _unaFila(BuildContext c, Widget w) => celular(c) ? SingleChildScrollView(scrollDirection: Axis.horizontal, child: w) : w;

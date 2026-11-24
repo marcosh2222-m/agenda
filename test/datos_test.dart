@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   copias();
+  ids();
 
   test('guardar y cargar devuelve lo mismo', () async {
     final dir = await Directory.systemTemp.createTemp('agenda');
@@ -63,5 +64,12 @@ void copias() {
     expect(ultimaCopia, '2026-11-22');
     await dir.delete(recursive: true);
     carpetaCopias.value = null;
+  });
+}
+
+void ids() {
+  test('ids distintos aunque se creen en el mismo instante', () {
+    final l = [for (var i = 0; i < 1000; i++) Entrada(texto: 'x', tipo: Tipo.nota).id];
+    expect(l.toSet().length, 1000);
   });
 }

@@ -3,11 +3,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 
 const _urlPrograma = 'https://github.com/ggml-org/whisper.cpp/releases/download/b5907/whisper-bin-x64.zip'; // versión fija
-const _urlModelo = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
+const _urlModelo = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.bin';
+
+// Huellas SHA-256 publicadas por GitHub y Hugging Face: lo bajado se ejecuta, así que tiene que ser exactamente eso.
+const _huellaPrograma = 'ecca07b277d943e9b9f4712856a144b857271a6b333104e511e1988e80db582b';
+const _huellaModelo = '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe';
 
 enum EstadoVoz { listo, descargando, grabando, transcribiendo }
 
@@ -28,7 +33,8 @@ Future<File?> _programa() async {
   return null;
 }
 
-Future<void> _descargar(String url, File destino, double desde, double hasta) async {
+/// Baja [url] a [destino] solo si su SHA-256 es [huella].
+Future<void> descargar(String url, String huella, File destino, double desde, double hasta) async {
   final cliente = HttpClient();
   try {
     final r = await (await cliente.getUrl(Uri.parse(url))).close();
@@ -42,6 +48,10 @@ Future<void> _descargar(String url, File destino, double desde, double hasta) as
       if (r.contentLength > 0) progresoVoz.value = desde + (hasta - desde) * bajado / r.contentLength;
     }
     await salida.close();
+    if ('${await sha256.bind(parcial.openRead()).first}' != huella) {
+      await parcial.delete();
+      throw 'La descarga no coincide con la original y se descartó';
+    }
     await parcial.rename(destino.path);
   } finally {
     cliente.close();
@@ -52,17 +62,19 @@ Future<void> _instalar() async {
   await _carpeta.create(recursive: true);
   if (await _programa() == null) {
     final zip = File('${_carpeta.path}\\whisper.zip');
-    await _descargar(_urlPrograma, zip, 0, .06);
-    final r = await Process.run('powershell', [
-      '-NoProfile',
-      '-Command',
-      'Expand-Archive -Force -LiteralPath "${zip.path}" -DestinationPath "${_carpeta.path}\\programa"',
-    ]);
+    await descargar(_urlPrograma, _huellaPrograma, zip, 0, .06);
+    final r = await descomprimir(zip, Directory('${_carpeta.path}\\programa'));
     if (r.exitCode != 0) throw 'No se pudo descomprimir Whisper: ${r.stderr}';
     await zip.delete();
     if (await _programa() == null) throw 'No encontré whisper-cli.exe en la descarga';
   }
-  if (!await _modelo.exists()) await _descargar(_urlModelo, _modelo, .06, 1);
+  if (!await _modelo.exists()) await descargar(_urlModelo, _huellaModelo, _modelo, .06, 1);
+}
+
+/// Con el tar de Windows (abre zip), sin pasar la ruta por una consola.
+Future<ProcessResult> descomprimir(File zip, Directory destino) async {
+  await destino.create(recursive: true);
+  return Process.run('${Platform.environment['SystemRoot']}\\System32\\tar.exe', ['-xf', zip.path, '-C', destino.path]);
 }
 
 /// Un toque: la primera vez instala; después empieza a grabar, y el siguiente toque termina y devuelve el texto.
@@ -109,6 +121,8 @@ Future<String> _terminar() async {
     return texto;
   } finally {
     estadoVoz.value = EstadoVoz.listo;
+    final audio = File(ruta);
+    if (await audio.exists()) await audio.delete(); // la voz no queda guardada
   }
 }
 

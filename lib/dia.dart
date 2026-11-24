@@ -120,27 +120,27 @@ class _DetalleDiaState extends State<DetalleDia> {
               ),
               Divider(height: 20, color: p.line),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          if (cumples.isNotEmpty) grupo('Cumpleaños', cumples, (e) => _fila(p, e)),
-                          grupo('Eventos', eventos, (e) => _fila(p, e), vacio: 'Sin eventos.'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 28),
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          grupo('Tareas', tareas, (e) => _fila(p, e, hecha: false), vacio: 'Nada pendiente.'),
-                          if (hechas.isNotEmpty) grupo('Hechas', hechas, (e) => _fila(p, e, hecha: true)),
-                        ],
-                      ),
-                    ),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final izquierda = [
+                      if (cumples.isNotEmpty) grupo('Cumpleaños', cumples, (e) => _fila(p, e)),
+                      grupo('Eventos', eventos, (e) => _fila(p, e), vacio: 'Sin eventos.'),
+                    ];
+                    final derecha = [
+                      grupo('Tareas', tareas, (e) => _fila(p, e, hecha: false), vacio: 'Nada pendiente.'),
+                      if (hechas.isNotEmpty) grupo('Hechas', hechas, (e) => _fila(p, e, hecha: true)),
+                    ];
+                    // Celular: una sola columna.
+                    if (c.maxWidth < 560) return ListView(children: [...izquierda, ...derecha]);
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: ListView(children: izquierda)),
+                        const SizedBox(width: 28),
+                        Expanded(child: ListView(children: derecha)),
+                      ],
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: 12),
@@ -176,40 +176,43 @@ class _DetalleDiaState extends State<DetalleDia> {
       if (hecha == false && vencida(e, hoy) && !mismoDia(e.fecha!, d)) 'Vencida · ${fechaCorta(e.fecha!, hoy)}',
       if (completada != null) 'Hecha ${completada.hour.toString().padLeft(2, '0')}:${completada.minute.toString().padLeft(2, '0')}',
     ];
-    return ConBorrar(
+    return Aterriza(
       entrada: e,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (hecha != null) ...[
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: Checkbox(value: hecha, onChanged: (v) => marcar(context, e, d, v!)),
+      child: ConBorrar(
+        entrada: e,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hecha != null) ...[
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Checkbox(value: hecha == true || marcando.contains(e.id), onChanged: (v) => marcar(context, e, d, v!)),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Padding(padding: const EdgeInsets.only(top: 7, right: 8), child: punto(colorCat[categoria(e)]!)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 1,
+                  children: [
+                    TextoEditable(
+                      entrada: e,
+                      texto: tituloLargo(e, d),
+                      hora: e.tipo == Tipo.evento ? e.hora : null,
+                      estilo: TextStyle(fontSize: 14, decoration: hecha == true ? TextDecoration.lineThrough : null, color: hecha == true ? p.muted : null),
+                    ),
+                    if (meta.isNotEmpty)
+                      Text(meta.join(' · '), style: TextStyle(fontSize: 12, color: meta.any((m) => m.startsWith('Vencida')) ? colorVencida : p.muted)),
+                    if (hecha != true) _alarmas(p, e),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
             ],
-            Padding(padding: const EdgeInsets.only(top: 7, right: 8), child: punto(colorCat[categoria(e)]!)),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 1,
-                children: [
-                  TextoEditable(
-                    entrada: e,
-                    texto: tituloLargo(e, d),
-                    hora: e.tipo == Tipo.evento ? e.hora : null,
-                    estilo: TextStyle(fontSize: 14, decoration: hecha == true ? TextDecoration.lineThrough : null, color: hecha == true ? p.muted : null),
-                  ),
-                  if (meta.isNotEmpty)
-                    Text(meta.join(' · '), style: TextStyle(fontSize: 12, color: meta.any((m) => m.startsWith('Vencida')) ? colorVencida : p.muted)),
-                  if (hecha != true) _alarmas(p, e),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

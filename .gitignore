@@ -49,3 +49,14 @@ app.*.map.json
 
 # Versión portable armada por tool/empaquetar.ps1
 /dist/
+
+# Grafo de graphify: se regenera y lleva rutas de esta PC
+/graphify-out/
+
+# Credenciales de Google y firmas: nunca al repo
+/google.json
+client_secret*.json
+google-services.json
+*.jks
+*.keystore
+key.properties

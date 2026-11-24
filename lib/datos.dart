@@ -1,6 +1,7 @@
 // Entradas (notas, tareas, eventos, cumpleaños) y su guardado en un JSON local.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -46,7 +47,7 @@ class Entrada {
     this.alarmas,
     DateTime? actualizado,
     this.borrado = false,
-  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toRadixString(36),
+  }) : id = id ?? nuevoId(),
        hechas = hechas ?? [],
        actualizado = actualizado ?? DateTime.now();
 
@@ -60,7 +61,7 @@ class Entrada {
     if (hechas.isNotEmpty) 'hechas': [for (final h in hechas) h.toIso8601String()],
     if (repeticion != null) 'repeticion': repeticion!.toJson(),
     if (alarmas != null) 'alarmas': alarmas,
-    'actualizado': actualizado.toIso8601String(),
+    'actualizado': actualizado.toUtc().toIso8601String(), // UTC: se compara entre equipos
     if (borrado) 'borrado': true,
   };
 
@@ -74,9 +75,23 @@ class Entrada {
     hechas: [for (final h in (j['hechas'] as List? ?? [])) DateTime.parse(h)],
     repeticion: j['repeticion'] == null ? null : Repeticion.fromJson(j['repeticion']),
     alarmas: (j['alarmas'] as List?)?.cast<String>(),
-    actualizado: DateTime.parse(j['actualizado']),
+    actualizado: DateTime.parse(j['actualizado']).toLocal(),
     borrado: j['borrado'] ?? false,
   );
+
+  /// Toma los datos de otra versión de la misma entrada. En el lugar: la pantalla puede tener esta misma abierta.
+  void copiarDe(Entrada o) {
+    texto = o.texto;
+    tipo = o.tipo;
+    fecha = o.fecha;
+    hora = o.hora;
+    importante = o.importante;
+    hechas = o.hechas;
+    repeticion = o.repeticion;
+    alarmas = o.alarmas;
+    actualizado = o.actualizado;
+    borrado = o.borrado;
+  }
 }
 
 String _dia(DateTime d) => '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -106,11 +121,14 @@ final carpetaCopias = ValueNotifier<String?>(null);
 final ciudad = ValueNotifier<Map<String, dynamic>?>(null);
 final clima = ValueNotifier<Map<String, List<num>>>({});
 String? climaActualizado;
+
+/// Cuenta de Google con la que se sincroniza; null = sin conectar.
+final cuentaGoogle = ValueNotifier<String?>(null);
 String? ultimaCopia, ultimoResumen; // días ("2026-11-22") de la última copia y del último resumen
 
 File archivoDatos = File('${Platform.environment['APPDATA']}\\Agenda\\entradas.json');
 
-const _version = 2; // 2: textos con formato (mayúscula inicial; cumpleaños guardan solo el nombre)
+const versionDatos = 2; // 2: textos con formato (mayúscula inicial; cumpleaños guardan solo el nombre)
 
 Future<void> cargar() async {
   if (!await archivoDatos.exists()) return;
@@ -125,6 +143,7 @@ Future<void> cargar() async {
     if (j['ciudad'] case Map m) ciudad.value = m.cast<String, dynamic>();
     if (j['clima'] case Map m) clima.value = {for (final k in m.keys) k as String: (m[k] as List).cast<num>()};
     climaActualizado = j['climaActualizado'];
+    cuentaGoogle.value = j['cuentaGoogle'];
     ultimaCopia = j['ultimaCopia'];
     ultimoResumen = j['ultimoResumen'];
     version = j['version'] ?? 1;
@@ -141,12 +160,21 @@ Future<void> cargar() async {
   }
 }
 
-Future<void> guardar() async {
+Future<void> _cola = Future.value();
+
+/// De a uno: dos guardados a la vez pisarían el mismo archivo temporal.
+Future<void> guardar() {
+  final turno = _cola.then((_) => _escribir());
+  _cola = turno.catchError((_) {}); // un error no frena los guardados siguientes
+  return turno;
+}
+
+Future<void> _escribir() async {
   await archivoDatos.parent.create(recursive: true);
   final tmp = File('${archivoDatos.path}.tmp');
   await tmp.writeAsString(
     const JsonEncoder.withIndent(' ').convert({
-      'version': _version,
+      'version': versionDatos,
       'tema': modoTema.value,
       'alarmas': alarmasDefecto.value,
       'atajo': atajoGuardado.value,
@@ -154,6 +182,7 @@ Future<void> guardar() async {
       'ciudad': ciudad.value,
       'clima': clima.value,
       'climaActualizado': climaActualizado,
+      'cuentaGoogle': cuentaGoogle.value,
       'ultimaCopia': ultimaCopia,
       'ultimoResumen': ultimoResumen,
       'entradas': entradas.value,
@@ -195,7 +224,17 @@ Future<void> cambiar() async {
   await guardar();
 }
 
+/// Entradas recién agregadas: la pantalla las hace "aterrizar" en su lugar durante un instante.
+final recientes = <String>{};
+
 Future<void> agregar(Entrada e) async {
+  recientes.add(e.id);
+  Future.delayed(const Duration(milliseconds: 1500), () => recientes.remove(e.id));
   entradas.value = [...entradas.value, e];
   await guardar();
 }
+
+final _azar = Random();
+
+/// Id único entre equipos: la hora en microsegundos más una parte al azar (dos entradas pueden nacer en el mismo microsegundo).
+String nuevoId() => '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}${_azar.nextInt(1 << 32).toRadixString(36).padLeft(7, '0')}';

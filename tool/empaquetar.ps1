@@ -3,7 +3,9 @@
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot)
 
-flutter build windows --release
+# Con google.json (credenciales, fuera del repo) se puede sincronizar; sin él, el resto anda igual.
+$credenciales = @(if (Test-Path google.json) { '--dart-define-from-file=google.json' })
+flutter build windows --release @credenciales
 if ($LASTEXITCODE -ne 0) { throw 'Falló el build de release' }
 
 $version = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)').Matches[0].Groups[1].Value -split '\+')[0]

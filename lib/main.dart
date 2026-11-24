@@ -13,7 +13,9 @@ import 'alarmas.dart';
 import 'calendario.dart';
 import 'clima.dart';
 import 'estilo.dart';
+import 'movil.dart';
 import 'pantalla.dart';
+import 'sincronizar.dart';
 import 'datos.dart';
 
 final notis = FlutterLocalNotificationsPlugin();
@@ -64,7 +66,11 @@ void cerrarCajita() {
 }
 
 Future<void> main(List<String> args) async {
+  final reloj = Stopwatch()..start();
+  final pasos = <String>[];
+  void paso(String nombre) => pasos.add('$nombre ${reloj.elapsedMilliseconds}');
   WidgetsFlutterBinding.ensureInitialized();
+  if (!Platform.isWindows) return mainMovil(); // celular: sin bandeja, atajo global ni ventana
   ventana = WindowManager.instance.getCurrent()!;
   ventana.addListener((e) {
     if (e is WindowCloseRequestedEvent) {
@@ -74,25 +80,35 @@ Future<void> main(List<String> args) async {
   });
 
   await cargar();
+  paso('datos');
   await notis.initialize(
     settings: const InitializationSettings(
       windows: WindowsInitializationSettings(appName: 'Agenda', appUserModelId: 'com.agenda.agenda', guid: '8c9a5077-333c-466b-8443-ef71354cf30a'),
     ),
     onDidReceiveNotificationResponse: _respuesta,
   );
+  paso('notificaciones');
   final inicio = await notis.getNotificationAppLaunchDetails();
+  paso('inicio desde notificación');
   if (inicio?.notificationResponse case final r? when inicio!.didNotificationLaunchApp) _respuesta(r);
   Timer.periodic(const Duration(seconds: 30), (_) {
     revisarAlarmas();
     diario(alAbrir: false);
   });
   diario(alAbrir: true);
+  iniciarSincronizacion();
 
   _bandeja();
+  paso('bandeja');
 
   await usarAtajo(atajoGuardado.value == null ? atajoActual.value : HotKey.fromJson(atajoGuardado.value!));
 
+  paso('atajo');
   runApp(const App());
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    paso('primer dibujo');
+    log('Arranque en ms: ${pasos.join(", ")}');
+  });
   if (args.contains('--minimized')) {
     log('Arrancó minimizada en la bandeja');
   } else {
@@ -306,6 +322,7 @@ class _AjustesState extends State<Ajustes> {
   @override
   void initState() {
     super.initState();
+    if (!Platform.isWindows) return; // en el celular no hay registro de Windows
     arranqueActivo().then((v) {
       if (mounted) setState(() => arranque = v);
     });
@@ -375,30 +392,33 @@ class _AjustesState extends State<Ajustes> {
           ),
         ),
       ),
-      SwitchListTile(
-        title: const Text('Arrancar con Windows (minimizada)'),
-        value: arranque,
-        onChanged: (v) async {
-          await cambiarArranque(v);
-          final real = await arranqueActivo();
-          setState(() => arranque = real);
-        },
-      ),
-      ValueListenableBuilder(
-        valueListenable: atajoError,
-        builder: (context, error, _) => ListTile(
-          title: const Text('Atajo para abrir la agenda'),
-          subtitle: Text(
-            error ?? (grabando ? 'Apretá la combinación nueva (Esc cancela)' : 'Funciona desde cualquier programa'),
-            style: TextStyle(fontSize: 12.5, color: error != null ? colorCat[Categoria.imp] : Paleta.of(context).muted),
-          ),
-          trailing: ValueListenableBuilder(
-            valueListenable: atajoActual,
-            builder: (context, atajo, _) =>
-                OutlinedButton(onPressed: grabando ? _dejarDeGrabar : _grabarAtajo, child: Text(grabando ? 'Esperando…' : nombreAtajo(atajo))),
+      if (Platform.isWindows)
+        SwitchListTile(
+          title: const Text('Arrancar con Windows (minimizada)'),
+          value: arranque,
+          onChanged: (v) async {
+            await cambiarArranque(v);
+            final real = await arranqueActivo();
+            setState(() => arranque = real);
+          },
+        ),
+      if (Platform.isWindows)
+        ValueListenableBuilder(
+          valueListenable: atajoError,
+          builder: (context, error, _) => ListTile(
+            title: const Text('Atajo para abrir la agenda'),
+            subtitle: Text(
+              error ?? (grabando ? 'Apretá la combinación nueva (Esc cancela)' : 'Funciona desde cualquier programa'),
+              style: TextStyle(fontSize: 12.5, color: error != null ? colorCat[Categoria.imp] : Paleta.of(context).muted),
+            ),
+            trailing: ValueListenableBuilder(
+              valueListenable: atajoActual,
+              builder: (context, atajo, _) =>
+                  OutlinedButton(onPressed: grabando ? _dejarDeGrabar : _grabarAtajo, child: Text(grabando ? 'Esperando…' : nombreAtajo(atajo))),
+            ),
           ),
         ),
-      ),
+      const FilaGoogle(),
       ValueListenableBuilder(
         valueListenable: ciudad,
         builder: (context, c, _) => ListTile(
@@ -421,44 +441,45 @@ class _AjustesState extends State<Ajustes> {
           ),
         ),
       ),
-      ListenableBuilder(
-        listenable: Listenable.merge([carpetaCopias, estadoCopia]),
-        builder: (context, _) {
-          final carpeta = carpetaCopias.value, error = estadoCopia.value;
-          return ListTile(
-            title: const Text('Copia diaria de los datos'),
-            subtitle: Text(
-              error ?? (carpeta == null ? 'Desactivada · conviene una carpeta de OneDrive' : '$carpeta · quedan las últimas 30'),
-              style: TextStyle(fontSize: 12.5, color: error != null ? colorCat[Categoria.imp] : Paleta.of(context).muted),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (carpeta != null)
-                  TextButton(
-                    onPressed: () {
-                      carpetaCopias.value = null;
-                      estadoCopia.value = null;
-                      guardar();
+      if (Platform.isWindows)
+        ListenableBuilder(
+          listenable: Listenable.merge([carpetaCopias, estadoCopia]),
+          builder: (context, _) {
+            final carpeta = carpetaCopias.value, error = estadoCopia.value;
+            return ListTile(
+              title: const Text('Copia diaria de los datos'),
+              subtitle: Text(
+                error ?? (carpeta == null ? 'Desactivada · conviene una carpeta de OneDrive' : '$carpeta · quedan las últimas 30'),
+                style: TextStyle(fontSize: 12.5, color: error != null ? colorCat[Categoria.imp] : Paleta.of(context).muted),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (carpeta != null)
+                    TextButton(
+                      onPressed: () {
+                        carpetaCopias.value = null;
+                        estadoCopia.value = null;
+                        guardar();
+                      },
+                      child: const Text('Desactivar'),
+                    ),
+                  OutlinedButton(
+                    onPressed: () async {
+                      final ruta = await elegirCarpeta();
+                      if (ruta == null) return;
+                      carpetaCopias.value = ruta;
+                      ultimaCopia = null; // carpeta nueva: copiar ya, sin esperar a mañana
+                      await guardar();
+                      diario(alAbrir: false);
                     },
-                    child: const Text('Desactivar'),
+                    child: Text(carpeta == null ? 'Elegir carpeta' : 'Cambiar'),
                   ),
-                OutlinedButton(
-                  onPressed: () async {
-                    final ruta = await elegirCarpeta();
-                    if (ruta == null) return;
-                    carpetaCopias.value = ruta;
-                    ultimaCopia = null; // carpeta nueva: copiar ya, sin esperar a mañana
-                    await guardar();
-                    diario(alAbrir: false);
-                  },
-                  child: Text(carpeta == null ? 'Elegir carpeta' : 'Cambiar'),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+                ],
+              ),
+            );
+          },
+        ),
       const SizedBox(height: 20),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -467,7 +488,7 @@ class _AjustesState extends State<Ajustes> {
             const Expanded(
               child: Text('Alarmas por defecto', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
-            TextButton(onPressed: probarAlarma, child: const Text('Probar una alarma')),
+            if (Platform.isWindows) TextButton(onPressed: probarAlarma, child: const Text('Probar una alarma')),
           ],
         ),
       ),

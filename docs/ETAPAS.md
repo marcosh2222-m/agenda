@@ -42,5 +42,10 @@ Open-Meteo, ciudad elegida en Ajustes, ícono y máx / mín en los 7 días y en 
 ## 7. Pulido y versión instalable ← ahora
 Uso real unas semanas, arreglar lo que moleste, instalador para Windows.
 
+## Android y sincronización ← en curso
+- ✅ Pantalla del celular, mes plegable, tarjetas por día, ajustes, animaciones.
+- ✅ Sincronización por la carpeta oculta de Google Drive: código y tests. Falta probarla con credenciales reales.
+- Falta en Android: alarmas programadas en el sistema, dictado y firma propia de la APK.
+
 ## Después
-Android y sincronización con Google Drive, editar una sola ocurrencia, eventos de varios días, etiquetas, checklists en notas, exportar.
+Ícono propio, editar fecha y tipo de una entrada, editar una sola ocurrencia, eventos de varios días, etiquetas, checklists en notas, exportar.

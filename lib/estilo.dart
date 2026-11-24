@@ -176,29 +176,45 @@ class ConBorrar extends StatefulWidget {
 class _ConBorrarState extends State<ConBorrar> {
   var encima = false;
 
-  @override
-  Widget build(BuildContext context) => MouseRegion(
-    onEnter: (_) => setState(() => encima = true),
-    onExit: (_) => setState(() => encima = false),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: widget.child),
-        AnimatedOpacity(
-          opacity: encima ? 1 : 0,
-          duration: const Duration(milliseconds: 120),
-          child: IconButton(
-            icon: const Icon(Icons.close, size: 16),
-            tooltip: 'Eliminar',
-            color: Paleta.of(context).muted,
-            visualDensity: VisualDensity.compact,
-            style: IconButton.styleFrom(minimumSize: const Size(28, 28), padding: EdgeInsets.zero),
-            onPressed: () => borrar(context, widget.entrada),
-          ),
-        ),
-      ],
+  // Celular: no hay mouse; se borra deslizando la fila hacia la izquierda (con Deshacer).
+  Widget _deslizar(BuildContext context) => Dismissible(
+    key: ValueKey('borrar-${widget.entrada.id}'),
+    direction: DismissDirection.endToStart,
+    onDismissed: (_) => borrar(context, widget.entrada),
+    background: Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 16),
+      color: colorCat[Categoria.imp]!.withValues(alpha: .18),
+      child: Icon(Icons.delete_outline, color: colorCat[Categoria.imp]),
     ),
+    child: widget.child,
   );
+
+  @override
+  Widget build(BuildContext context) => celular(context)
+      ? _deslizar(context)
+      : MouseRegion(
+          onEnter: (_) => setState(() => encima = true),
+          onExit: (_) => setState(() => encima = false),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: widget.child),
+              AnimatedOpacity(
+                opacity: encima ? 1 : 0,
+                duration: const Duration(milliseconds: 120),
+                child: IconButton(
+                  icon: const Icon(Icons.close, size: 16),
+                  tooltip: 'Eliminar',
+                  color: Paleta.of(context).muted,
+                  visualDensity: VisualDensity.compact,
+                  style: IconButton.styleFrom(minimumSize: const Size(28, 28), padding: EdgeInsets.zero),
+                  onPressed: () => borrar(context, widget.entrada),
+                ),
+              ),
+            ],
+          ),
+        );
 }
 
 /// Alarmas editables: cada una con su ×, y una caja para agregar ("30 min antes", "09:00", "día anterior 20:00").
@@ -304,10 +320,23 @@ void borrar(BuildContext c, Entrada e) {
 }
 
 /// Completa o desmarca una tarea en el día [d], con Deshacer.
+/// Tareas que se están completando: se ven tildadas y tachadas un instante antes de irse de la lista.
+final marcando = <String>{};
+
 void marcar(BuildContext c, Entrada e, DateTime d, bool si) {
   final antes = [...e.hechas];
-  completar(e, d, si);
-  cambiar();
+  if (si && !(MediaQuery.maybeDisableAnimationsOf(c) ?? false)) {
+    marcando.add(e.id);
+    entradas.value = [...entradas.value]; // redibuja con el tilde, sin guardar todavía
+    Future.delayed(const Duration(milliseconds: 260), () {
+      marcando.remove(e.id);
+      completar(e, d, si);
+      cambiar();
+    });
+  } else {
+    completar(e, d, si);
+    cambiar();
+  }
   avisar(c, si ? 'Hecha: ${e.texto}' : 'Vuelve a pendiente: ${e.texto}', () {
     e.hechas = antes;
     e.actualizado = DateTime.now();
@@ -331,3 +360,74 @@ Widget punto(Color c, [double t = 6]) => Container(
   height: t,
   decoration: BoxDecoration(color: c, shape: BoxShape.circle),
 );
+
+// ---------- Movimiento ----------
+// Rápido y sin rebotes; con "reducir movimiento" del sistema, todo pasa sin animar.
+
+const llegada = Cubic(0.16, 1, 0.3, 1); // desacelera al llegar
+
+Duration mov(BuildContext c, int ms) => (MediaQuery.maybeDisableAnimationsOf(c) ?? false) ? Duration.zero : Duration(milliseconds: ms);
+
+/// Lo recién capturado aterriza en su lugar: sube 8 px al aparecer y el fondo destella con el acento.
+/// Lo que ya estaba se dibuja quieto (el estado vive por la clave de la entrada).
+class Aterriza extends StatefulWidget {
+  final Entrada entrada;
+  final Widget child;
+  Aterriza({required this.entrada, required this.child}) : super(key: ValueKey('aterriza-${entrada.id}'));
+  @override
+  State<Aterriza> createState() => _AterrizaState();
+}
+
+class _AterrizaState extends State<Aterriza> with SingleTickerProviderStateMixin {
+  late final c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900), value: 1);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (c.isCompleted && recientes.contains(widget.entrada.id) && mov(context, 1) != Duration.zero) c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final acento = Paleta.of(context).accent;
+    return AnimatedBuilder(
+      animation: c,
+      child: widget.child,
+      builder: (context, hijo) {
+        final entra = llegada.transform((c.value / .35).clamp(0, 1)); // 0–315 ms: sube y aparece
+        final brillo = 1 - Curves.easeOut.transform(((c.value - .25) / .75).clamp(0, 1)); // luego el destello se apaga
+        return Opacity(
+          opacity: entra,
+          child: Transform.translate(
+            offset: Offset(0, 8 * (1 - entra)),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: acento.withValues(alpha: .2 * brillo),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: hijo,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Cambio de contenido con fundido (secciones, pestañas).
+Widget fundido(BuildContext c, Object clave, Widget hijo) => AnimatedSwitcher(
+  duration: mov(c, 200),
+  reverseDuration: mov(c, 120),
+  switchInCurve: llegada,
+  switchOutCurve: Curves.easeIn,
+  child: KeyedSubtree(key: ValueKey(clave), child: hijo),
+);
+
+/// Pantalla de celular: todo usa el mismo margen de 16 px para que las pestañas queden alineadas.
+bool celular(BuildContext c) => MediaQuery.sizeOf(c).width < 600;

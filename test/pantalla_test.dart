@@ -105,5 +105,6 @@ void cajita() {
     await t.testTextInput.receiveAction(TextInputAction.done);
     await t.pump();
     expect([entradas.value.last.tipo, entradas.value.last.hora], [Tipo.evento, '10:00']);
+    await t.pump(const Duration(seconds: 2)); // deja vencer el temporizador de "recientes"
   });
 }
