@@ -57,23 +57,35 @@ Future<void> sincronizarCon(Drive drive) async {
 
 final estadoSync = ValueNotifier<String>('');
 Timer? _pronto;
+final sesionVencida = ValueNotifier(false); // Google pide conectar de nuevo
+Drive nube = Drive(tokenGoogle); // los tests usan un servidor local
 Future<void>? _enCurso;
+var _otraVez = false;
 
-Future<void> sincronizar() => _enCurso ??= _sincronizar().whenComplete(() => _enCurso = null);
-
-Future<void> _sincronizar() async {
-  if (cuentaGoogle.value == null) return;
-  estadoSync.value = 'Sincronizando…';
-  try {
-    await sincronizarCon(Drive(tokenGoogle));
-    final t = DateTime.now();
-    estadoSync.value = 'Sincronizado a las ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-  } catch (e) {
-    estadoSync.value = 'No se pudo sincronizar: $e';
-  }
+/// Si ya hay una en curso, al terminar se hace otra: la primera pudo empezar antes del último cambio.
+Future<void> sincronizar() {
+  if (_enCurso != null) _otraVez = true;
+  return _enCurso ??= _sincronizar().whenComplete(() => _enCurso = null);
 }
 
-/// Al abrir, 5 s después de cada cambio, al volver a la app y cada 5 min.
+Future<void> _sincronizar() async {
+  do {
+    _otraVez = false;
+    if (cuentaGoogle.value == null) return;
+    estadoSync.value = 'Sincronizando…';
+    try {
+      await sincronizarCon(nube);
+      final t = DateTime.now();
+      estadoSync.value = 'Sincronizado a las ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      sesionVencida.value = false;
+    } catch (e) {
+      estadoSync.value = 'No se pudo sincronizar: $e';
+      sesionVencida.value = e is SesionVencida;
+    }
+  } while (_otraVez);
+}
+
+/// Al abrir, 5 s después de cada cambio, al ocultar la app o volver a ella y cada 5 min.
 void iniciarSincronizacion() {
   entradas.addListener(() {
     if (cuentaGoogle.value == null) return;
@@ -81,7 +93,7 @@ void iniciarSincronizacion() {
     _pronto = Timer(const Duration(seconds: 5), sincronizar);
   });
   Timer.periodic(const Duration(minutes: 5), (_) => sincronizar());
-  AppLifecycleListener(onResume: sincronizar);
+  AppLifecycleListener(onResume: sincronizar, onHide: sincronizar);
   sincronizar();
 }
 
@@ -89,7 +101,7 @@ Future<void> _conectar() async {
   estadoSync.value = 'Esperando que aceptes en Google…';
   try {
     await conectarGoogle();
-    cuentaGoogle.value = await Drive(tokenGoogle).cuenta();
+    cuentaGoogle.value = await nube.cuenta();
     await guardar();
     await sincronizar();
   } catch (e) {
@@ -100,6 +112,7 @@ Future<void> _conectar() async {
 Future<void> _desconectar() async {
   await olvidarGoogle();
   cuentaGoogle.value = null;
+  sesionVencida.value = false;
   estadoSync.value = '';
   await guardar();
 }
@@ -111,7 +124,7 @@ class FilaGoogle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([cuentaGoogle, estadoSync]),
+    listenable: Listenable.merge([cuentaGoogle, estadoSync, sesionVencida]),
     builder: (context, _) {
       final cuenta = cuentaGoogle.value, estado = estadoSync.value;
       final detalle = [
@@ -133,7 +146,7 @@ class FilaGoogle extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            if (cuenta == null)
+            if (cuenta == null || sesionVencida.value)
               OutlinedButton(onPressed: googleConfigurado ? _conectar : null, child: const Text('Conectar'))
             else ...[
               IconButton(icon: const Icon(Icons.sync, size: 20), tooltip: 'Sincronizar ahora', onPressed: sincronizar),

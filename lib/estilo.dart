@@ -319,25 +319,20 @@ void borrar(BuildContext c, Entrada e) {
   avisar(c, 'Eliminado: ${e.texto}', () => poner(false));
 }
 
-/// Completa o desmarca una tarea en el día [d], con Deshacer.
-/// Tareas que se están completando: se ven tildadas y tachadas un instante antes de irse de la lista.
-final marcando = <String>{};
-
+/// Completa o desmarca una tarea en el día [d], con Deshacer. Guarda enseguida; lo único que espera es la lista.
 void marcar(BuildContext c, Entrada e, DateTime d, bool si) {
   final antes = [...e.hechas];
+  marcando.remove(e.id);
   if (si && !(MediaQuery.maybeDisableAnimationsOf(c) ?? false)) {
     marcando.add(e.id);
-    entradas.value = [...entradas.value]; // redibuja con el tilde, sin guardar todavía
     Future.delayed(const Duration(milliseconds: 260), () {
-      marcando.remove(e.id);
-      completar(e, d, si);
-      cambiar();
+      if (marcando.remove(e.id)) entradas.value = [...entradas.value];
     });
-  } else {
-    completar(e, d, si);
-    cambiar();
   }
+  completar(e, d, si);
+  cambiar();
   avisar(c, si ? 'Hecha: ${e.texto}' : 'Vuelve a pendiente: ${e.texto}', () {
+    marcando.remove(e.id);
     e.hechas = antes;
     e.actualizado = DateTime.now();
     cambiar();

@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   cajita();
+  marcarTareas();
 
   testWidgets('detalle del día, borrar con Deshacer y atajos', (t) async {
     archivoDatos = File('${Directory.systemTemp.createTempSync('agenda').path}/entradas.json'); // nunca el archivo real
@@ -70,6 +71,45 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(DetalleDia), findsOneWidget);
+  });
+}
+
+void marcarTareas() {
+  testWidgets('marcar guarda enseguida, aunque la tarea siga un instante a la vista', (t) async {
+    archivoDatos = File('${Directory.systemTemp.createTempSync('agenda').path}/entradas.json');
+    entradas.value = [interpretar('comprar pan', DateTime.now())];
+    final pan = entradas.value.single;
+    await t.pumpWidget(
+      MaterialApp(
+        theme: tema(Brightness.light),
+        home: Scaffold(
+          body: ValueListenableBuilder(
+            valueListenable: entradas,
+            builder: (_, todas, _) => ListaTareas(todas: todas, hoy: DateTime.now()),
+          ),
+        ),
+      ),
+    );
+    Future<void> tocar() async {
+      await t.tap(find.byType(Checkbox));
+      await t.pump();
+    }
+
+    await tocar();
+    expect([pan.hechas.length, t.widget<Checkbox>(find.byType(Checkbox)).value], [1, true]);
+    await tocar(); // arrepentirse antes de que se vaya
+    await t.pump(const Duration(milliseconds: 300));
+    expect([pan.hechas, t.widget<Checkbox>(find.byType(Checkbox)).value], [isEmpty, false]);
+
+    await tocar();
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.byType(Checkbox), findsNothing);
+    expect(pan.hechas, hasLength(1));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Deshacer'));
+    await t.pump();
+    expect([pan.hechas, t.widget<Checkbox>(find.byType(Checkbox)).value], [isEmpty, false]);
+    await t.pump(const Duration(seconds: 7));
   });
 }
 

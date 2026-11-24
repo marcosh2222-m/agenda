@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -179,6 +180,47 @@ void main() {
     drive.pedidos.clear();
     await expectLater(malo.archivos(), throwsA(contains('401')));
     expect(drive.pedidos, hasLength(2));
+  });
+
+  group('sincronizar:', () {
+    setUp(() => cuentaGoogle.value = 'prueba');
+    tearDown(() {
+      cuentaGoogle.value = null;
+      nube = Drive(tokenGoogle);
+    });
+
+    test('un cambio durante una sincronización lenta se sube al terminar', () async {
+      entradas.value = [e('a', 'Pan', 0)];
+      final lento = Completer<String>(), esperando = Completer<void>();
+      nube = Drive(({bool renovar = false}) {
+        if (drive.pedidos.isEmpty) return Future.value('token-1');
+        if (!esperando.isCompleted) esperando.complete();
+        return lento.future;
+      }, base: drive.cliente().base);
+      final primera = sincronizar();
+      await esperando.future; // ya listó y está por subir "a"
+      entradas.value = [...entradas.value, e('b', 'Leche', 1)];
+      expect(sincronizar(), same(primera)); // pedida mientras la primera sigue
+      lento.complete('token-1');
+      await primera;
+      expect(jsonDecode(drive.archivos.values.single)['entradas'], hasLength(2));
+    });
+
+    test('con la sesión vencida pide conectar; al volver a andar, deja de pedirlo', () async {
+      nube = Drive(({bool renovar = false}) async => throw SesionVencida());
+      await sincronizar();
+      expect(sesionVencida.value, isTrue);
+      nube = drive.cliente();
+      await sincronizar();
+      expect(sesionVencida.value, isFalse);
+    });
+
+    test('sin internet no pide conectar', () async {
+      drive.falla = 503;
+      nube = drive.cliente();
+      await sincronizar();
+      expect([sesionVencida.value, estadoSync.value], [false, contains('503')]);
+    });
   });
 
   test('guardados a la vez no se pisan', () async {

@@ -44,7 +44,7 @@ Uso real unas semanas, arreglar lo que moleste, instalador para Windows.
 
 ## Android y sincronización ← en curso
 - ✅ Pantalla del celular, mes plegable, tarjetas por día, ajustes, animaciones.
-- ✅ Sincronización por la carpeta oculta de Google Drive: código y tests. Falta probarla con credenciales reales.
+- ✅ Sincronización por la carpeta oculta de Google Drive: probada entre la PC y el celular.
 - Falta en Android: alarmas programadas en el sistema, dictado y firma propia de la APK.
 
 ## Después

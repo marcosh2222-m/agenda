@@ -227,6 +227,9 @@ Future<void> cambiar() async {
 /// Entradas recién agregadas: la pantalla las hace "aterrizar" en su lugar durante un instante.
 final recientes = <String>{};
 
+/// Tareas recién completadas (ya guardadas): la pantalla las deja tildadas en su lista un instante antes de sacarlas.
+final marcando = <String>{};
+
 Future<void> agregar(Entrada e) async {
   recientes.add(e.id);
   Future.delayed(const Duration(milliseconds: 1500), () => recientes.remove(e.id));

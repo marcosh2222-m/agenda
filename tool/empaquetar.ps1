@@ -12,7 +12,8 @@ $version = ((Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)').Matc
 $carpeta = 'dist\Agenda'
 $zip = "dist\Agenda-portable-$version.zip"
 
-if (Test-Path dist) { Remove-Item dist -Recurse -Force }
+# Solo lo de Windows: en dist también están las APK.
+foreach ($viejo in $carpeta, $zip) { if (Test-Path $viejo) { Remove-Item $viejo -Recurse -Force } }
 New-Item -ItemType Directory $carpeta | Out-Null
 Copy-Item 'build\windows\x64\runner\Release\*' $carpeta -Recurse
 Compress-Archive -Path $carpeta -DestinationPath $zip

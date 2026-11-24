@@ -531,7 +531,7 @@ class _InicioMovilState extends State<InicioMovil> {
                           SizedBox(
                             width: 22,
                             height: 22,
-                            child: Checkbox(value: marcando.contains(e.id), onChanged: (_) => marcar(context, e, d, true)),
+                            child: Checkbox(value: marcando.contains(e.id), onChanged: (v) => marcar(context, e, d, v!)),
                           ),
                           const SizedBox(width: 8),
                           if (e.hora != null)

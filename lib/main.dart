@@ -134,6 +134,8 @@ void _bandeja() {
   menu.addSeparator();
   item('Salir', () async {
     iconoBandeja.setVisible(false);
+    ventana.hide();
+    await sincronizar().timeout(const Duration(seconds: 5), onTimeout: () {}); // que lo último llegue al celular
     exit(0);
   });
 
@@ -367,8 +369,7 @@ class _AjustesState extends State<Ajustes> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => ListView(
     children: [
       const Text('Ajustes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       const SizedBox(height: 20),
@@ -531,11 +532,12 @@ class _AjustesState extends State<Ajustes> {
         padding: EdgeInsets.symmetric(horizontal: 16),
         child: Text('Registro', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
-      Expanded(
-        child: ValueListenableBuilder(
-          valueListenable: registro,
-          builder: (context, l, _) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      ValueListenableBuilder(
+        valueListenable: registro,
+        builder: (context, l, _) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [for (final s in l) Text(s, style: TextStyle(fontSize: 12, color: Paleta.of(context).muted))],
           ),
         ),

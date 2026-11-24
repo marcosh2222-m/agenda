@@ -9,9 +9,9 @@ Agenda y anotador personal para Windows y Android, hecha con Flutter. Qué hace:
 
 La app solo pide acceso a su propia carpeta oculta en tu Drive (`drive.appdata`): no ve el resto de tus archivos. Para compilarla con sincronización hace falta un proyecto propio en [Google Cloud](https://console.cloud.google.com):
 
-1. Crear un proyecto y activar la **Google Drive API**.
-2. En la pantalla de consentimiento: tipo **Externo**, y agregar el permiso `https://www.googleapis.com/auth/drive.appdata`. Después, **publicar la app**: en modo prueba el acceso vence cada 7 días. Ese permiso es "no sensible".
-3. Crear dos credenciales OAuth en el mismo proyecto:
+1. Crear el proyecto con el [modo Personal](https://console.cloud.google.com/auth/overview/personal): solo entra la cuenta que lo crea, sin verificación ni el vencimiento de 7 días del modo prueba. Un proyecto Externo no se puede pasar a Personal.
+2. Activar ahí la **Google Drive API**.
+3. El mismo proyecto lleva dos credenciales OAuth:
    - **App de escritorio** (Windows). Copiar `google.ejemplo.json` como `google.json` y poner ahí el ID y el secreto. `google.json` no va al repo.
    - **Android**: paquete `com.agenda.agenda` y la huella SHA-1 del certificado con que se firma la APK. No lleva archivo.
 
