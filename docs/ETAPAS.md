@@ -40,7 +40,7 @@ Entradas guardadas en `%APPDATA%\Agenda\entradas.json`. La frase se interpreta s
 Open-Meteo, ciudad elegida en Ajustes, ícono y máx / mín en los 7 días y en el detalle del día. Se actualiza al abrir y cada 3 h; sin internet queda el último guardado.
 
 ## 7. Pulido y versión instalable ← ahora
-Uso real unas semanas, arreglar lo que moleste, instalador para Windows.
+Uso real unas semanas y arreglar lo que moleste. ✅ Instalador para Windows e ícono propio.
 
 ## Android y sincronización ← en curso
 - ✅ Pantalla del celular, mes plegable, tarjetas por día, ajustes, animaciones.
@@ -48,4 +48,4 @@ Uso real unas semanas, arreglar lo que moleste, instalador para Windows.
 - Falta en Android: alarmas programadas en el sistema, dictado y firma propia de la APK.
 
 ## Después
-Ícono propio, editar fecha y tipo de una entrada, editar una sola ocurrencia, eventos de varios días, etiquetas, checklists en notas, exportar.
+Editar fecha y tipo de una entrada, editar una sola ocurrencia, eventos de varios días, etiquetas, checklists en notas, exportar.

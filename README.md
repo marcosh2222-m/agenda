@@ -2,7 +2,7 @@
 
 Agenda y anotador personal para Windows y Android, hecha con Flutter. Qué hace: [docs/CONCEPTO.md](docs/CONCEPTO.md). Plan: [docs/ETAPAS.md](docs/ETAPAS.md).
 
-- Versión portable de Windows: `.\tool\empaquetar.ps1`
+- Windows, portable e instalador (con [Inno Setup 6](https://jrsoftware.org/isinfo.php)): `.\tool\empaquetar.ps1`
 - APK: `flutter build apk --release --split-per-abi`
 
 ## Sincronización con Google Drive
